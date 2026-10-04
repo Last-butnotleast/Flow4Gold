@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
-const catalog = await Promise.all([1,2,3].map(async version=>({machine:'customer-refund',version,isDefault:version===3,definition:await readFile(`machines/customer-refund.v${version}.json`,'utf8')})));
+const catalog = [{machine:'customer-refund',version:1,isDefault:true,definition:await readFile('machines/customer-refund.v1.json','utf8')}];
 import { compiledWorkflow } from '../scripts/build-core.mjs';
 const workflow = await compiledWorkflow('workflows/flow4gold/tasks/diagnose-case.workflow.ts');
 const node = name => workflow.nodes.find(node => node.name === name);
-const invocation = {caseId:'case-1',triggerEventId:'e1',taskInvocationId:'e1:diagnose',correlationId:'case-1',task:'diagnose',machine:'customer-refund',machineVersion:2,state:'INVESTIGATING'};
+const invocation = {caseId:'case-1',triggerEventId:'e1',taskInvocationId:'e1:diagnose',correlationId:'case-1',task:'diagnose',machine:'customer-refund',machineVersion:1,state:'INVESTIGATING'};
 function code(name,items,previous) {
   return new Function('$input','$',node(name).parameters.jsCode)({all:()=>items.map(json=>({json})),first:()=>({json:items[0]})},key=>({first:()=>({json:previous[key]}),all:()=>previous[key].map(json=>({json}))}))[0].json;
 }
-const row = (payload,overrides={}) => ({eventId:'e1',caseId:'case-1',sequence:1,type:'RECEIVED',payload:JSON.stringify(payload),...overrides});
+const row = (payload,overrides={}) => ({eventId:'e1',caseId:'case-1',machine:'customer-refund',machineVersion:1,correlationId:'case-1',sequence:1,type:'RECEIVED',payload:JSON.stringify(payload),...overrides});
 const orders=[{orderReference:'1042',itemName:'Travel mug',amount:25,currency:'EUR',paymentReference:'demo-payment-1042',duplicateCharge:true},{orderReference:'1043',itemName:'Weekend bag',amount:40,currency:'EUR',paymentReference:'demo-payment-1043',duplicateCharge:false}];
 const prepare = (payload={}, rows, task=invocation, records=orders, definitions=catalog) => code('Prepare Jev Decision',definitions,{'Receive Task':task,'Read Case Events':rows??[row(payload)],'Read Demo Orders':records});
 const response = choice => ({model:'typesafe/jev-1.13-20260917',id:'gen-demo',answers:{next_event:{type:'choice',choice,confidence:0.9,probabilities:{REFUND_RECOMMENDED:0.9,NEED_MORE_INFO:0.05,ESCALATE:0.05}}}});
@@ -54,16 +54,20 @@ test('malformed or failed Jev calls escalate without leaking the provider error'
 test('valid more-information and escalation decisions remain bounded domain outcomes',()=>{
   for(const choice of ['NEED_MORE_INFO','ESCALATE']) assert.equal(result(prepare({orderReference:'1042'}),response(choice)).type,choice);
 });
-test('v3 diagnosis retains reviewer clarification and customer reply without importing reviewer payment fields',()=>{
+test('diagnosis retains reviewer clarification and customer reply without importing reviewer payment fields',()=>{
   const rows=[row({message:'Order 1042 needs review',orderReference:'1042'}),row({reviewEventId:'e2',message:'Was this a second charge or a pending authorization?',reason:'Clarify the payment status',amount:5000},{eventId:'question',sequence:3,type:'NEED_MORE_INFO',taskInvocationId:'e2:human_review'}),row({message:'It was a second settled charge'},{eventId:'reply',sequence:4,type:'CUSTOMER_REPLIED'}),row({question:'Do not include future questions'},{eventId:'future',sequence:9,type:'NEED_MORE_INFO',taskInvocationId:'e8:human_review'})];
-  const prepared=prepare({},rows,{...invocation,machineVersion:3,triggerEventId:'reply',taskInvocationId:'reply:diagnose'});
+  const prepared=prepare({},rows,{...invocation,machineVersion:1,triggerEventId:'reply',taskInvocationId:'reply:diagnose'});
   assert.equal(prepared.order.amount,25);
   assert.deepEqual(prepared.jev_request.state.reviewer_questions,[{question:'Was this a second charge or a pending authorization?',reason:'Clarify the payment status',sequence:3}]);
   assert.deepEqual(prepared.jev_request.state.customer_messages,['Order 1042 needs review','It was a second settled charge']);
   assert.equal(result(prepared,response('REFUND_RECOMMENDED')).payload.amount,25);
 });
-test('diagnosis keeps v1 and v2 invocations supported',()=>{
-  for(const machineVersion of [1,2,3])assert.equal(prepare({orderReference:'1042'},undefined,{...invocation,machineVersion}).order.amount,25);
+test('diagnosis adapter accepts a new positive pinned version with the same supported policy',()=>{
+  const definition={...JSON.parse(catalog[0].definition),version:2};
+  const definitions=[{machine:'customer-refund',version:2,isDefault:true,definition:JSON.stringify(definition)}];
+  const task={...invocation,machineVersion:2};
+  assert.equal(prepare({},[row({orderReference:'1042'},{machineVersion:2})],task,orders,definitions).order.amount,25);
+  for(const machineVersion of [0,-1,1.5,'1'])assert.throws(()=>prepare({},undefined,{...invocation,machineVersion}));
 });
 
 test('native demo orders source supports new records and refuses malformed/duplicate evidence without fallback',()=>{
@@ -78,10 +82,15 @@ test('native demo orders source supports new records and refuses malformed/dupli
 });
 
 test('diagnosis reads exact pinned machine criteria from catalog and rejects missing/invalid versions',()=>{
- const definitions=structuredClone(catalog);const current=JSON.parse(definitions[2].definition);current.states.INVESTIGATING.decide.ESCALATE.description='Catalog-specific review criterion.';definitions[2].definition=JSON.stringify(current);
- const prepared=prepare({orderReference:'1042'},undefined,{...invocation,machineVersion:3},orders,definitions);
+ const definitions=structuredClone(catalog);const current=JSON.parse(definitions[0].definition);current.states.INVESTIGATING.decide.ESCALATE.description='Catalog-specific review criterion.';definitions[0].definition=JSON.stringify(current);
+ const prepared=prepare({orderReference:'1042'},undefined,{...invocation,machineVersion:1},orders,definitions);
  assert.match(prepared.jev_request.questions.next_event.criteria.ESCALATE,/Catalog-specific/);
- assert.throws(()=>prepare({},undefined,invocation,orders,catalog.filter(row=>row.version!==2)));
+ assert.throws(()=>prepare({},undefined,invocation,orders,catalog.filter(row=>row.version!==1)));
  assert.throws(()=>prepare({},undefined,invocation,orders,[]));
  assert.equal(node('Read Machine Definitions').parameters.dataTableId.value,'Lm8JZL9uCNqj14vE');
+});
+
+test('diagnosis validates recorded trigger identity before using evidence',()=>{
+ for(const change of [{machine:'other'},{machineVersion:9},{correlationId:'other'},{type:'APPROVED'},{sequence:0}])assert.throws(()=>prepare({},[row({},change)]));
+ assert.throws(()=>prepare({},[row({}),row({})]));
 });

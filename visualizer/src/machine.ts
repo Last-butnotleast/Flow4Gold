@@ -4,6 +4,7 @@ export interface Transition {
   target: string;
   description?: string;
   outcome?: string;
+  taskResult?: boolean;
 }
 
 export interface MachineState {

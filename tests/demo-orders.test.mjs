@@ -23,7 +23,7 @@ test('order APIs read live catalog, insert generated references and expose no cr
   const calls=[];
   await withServer(async(url,options)=>{
     calls.push({url:String(url),options});
-    if(String(url).includes('Lm8JZL9uCNqj14vE'))return Response.json({data:[{machine:'sample',version:1,isDefault:true,definition:JSON.stringify({machine:'sample',version:1,initial:'OPEN',states:{OPEN:{final:true}}})}]});
+    if(String(url).includes('Lm8JZL9uCNqj14vE'))return Response.json({data:[{machine:'customer-refund',version:1,isDefault:true,definition:JSON.stringify({machine:'customer-refund',version:1,initial:'OPEN',states:{OPEN:{final:true}}})}]});
     return Response.json(options.method==='POST'?{data:JSON.parse(options.body).data}:{data:[{...row,id:1}]});
   },async call=>{
     const listed=await call('/api/orders');assert.equal(listed.status,200);assert.deepEqual(listed.body,{orders:[row]});

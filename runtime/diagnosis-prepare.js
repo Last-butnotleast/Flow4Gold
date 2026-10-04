@@ -3,11 +3,15 @@ for (const field of ['caseId', 'triggerEventId', 'taskInvocationId', 'correlatio
   if (typeof invocation[field] !== 'string' || !invocation[field].trim()) throw new Error('Missing invocation field: ' + field);
 }
 if (invocation.task !== 'diagnose' || invocation.machine !== 'customer-refund' ||
-    ![1, 2, 3].includes(invocation.machineVersion) || invocation.state !== 'INVESTIGATING' ||
+    (!Number.isSafeInteger(invocation.machineVersion) || invocation.machineVersion < 1) || invocation.state !== 'INVESTIGATING' ||
     invocation.taskInvocationId !== invocation.triggerEventId + ':diagnose') throw new Error('Unexpected diagnosis invocation');
 const rows = $('Read Case Events').all().map(item => item.json).filter(row => row.caseId === invocation.caseId).sort((a, b) => a.sequence - b.sequence);
-const trigger = rows.find(row => row.eventId === invocation.triggerEventId);
-if (!trigger) throw new Error('Diagnosis trigger is not recorded');
+const triggers = rows.filter(row => row.eventId === invocation.triggerEventId);
+if (triggers.length !== 1) throw new Error('Expected one recorded diagnosis trigger');
+const trigger = triggers[0];
+if (!['RECEIVED', 'CUSTOMER_REPLIED'].includes(trigger.type) || trigger.machine !== invocation.machine ||
+    trigger.machineVersion !== invocation.machineVersion || trigger.correlationId !== invocation.correlationId ||
+    !Number.isSafeInteger(trigger.sequence) || trigger.sequence < 1) throw new Error('Diagnosis trigger identity is invalid');
 const intake = rows.filter(row => row.sequence <= trigger.sequence && ['RECEIVED', 'CUSTOMER_REPLIED'].includes(row.type)).map(row => {
   const payload = typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
   return { message: typeof payload?.message === 'string' ? payload.message.slice(0, 4000) : '',
@@ -27,7 +31,12 @@ const reviewQuestions = rows.filter(row => row.sequence <= trigger.sequence && r
   const payload = typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
   return { question: typeof payload.message === 'string' ? payload.message.slice(0, 4000) : typeof payload.question === 'string' ? payload.question.slice(0, 4000) : '', reason: typeof payload.reason === 'string' ? payload.reason.slice(0, 4000) : '', sequence: row.sequence };
 });
-const criteria = Object.fromEntries(Object.entries(machine.states.INVESTIGATING.decide).map(([key, value]) => [key, value.description]));
+const decisions = machine.states.INVESTIGATING?.decide;
+const outcomes = ['REFUND_RECOMMENDED', 'NEED_MORE_INFO', 'ESCALATE'];
+if (!decisions || Object.keys(decisions).length !== outcomes.length || outcomes.some(type => !decisions[type])) {
+  throw new Error('Refund diagnosis requires its three supported investigation outcomes');
+}
+const criteria = Object.fromEntries(outcomes.map(type => [type, decisions[type].description || type]));
 criteria.REFUND_RECOMMENDED += ' Only when trusted_order confirms a duplicate charge and customer messages concern that payment; this is a proposal requiring human approval, never a payment.';
 criteria.NEED_MORE_INFO += ' Choose when no matching order is known or the customer has not described the issue clearly.';
 criteria.ESCALATE += ' Choose for a known order without duplicate-charge evidence, conflicting claims, or requests beyond this refund policy.';

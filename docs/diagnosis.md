@@ -1,5 +1,7 @@
 # Bounded diagnosis with Jev
 
+This describes the local phase-1 refund v1 adapter; remote rollout is separate. See [generic runtime status](generic-runtime.md).
+
 The Diagnose Case task reads the case's accepted `RECEIVED` and `CUSTOMER_REPLIED` events through the triggering event, then asks Jev for one investigation outcome. It runs asynchronously and returns a domain event to Core Runtime. The machine definition and event stream remain authoritative.
 
 ## Request and response
@@ -31,10 +33,10 @@ Amount, currency, payment reference, item name, and duplicate-charge evidence co
 
 HTTP failures or invalid bounded answers return `ESCALATE` with a short service-unavailable explanation. The callback never includes raw HTTP errors, headers, or credential data. Invocation or stream-integrity errors stop the task rather than manufacturing a domain result.
 
-The callback retains `caseId`, `correlationId`, `causationId`, and `taskInvocationId`; its stable event ID is `<taskInvocationId>:result`. Core validates the callback against the expected invocation before recording it.
+The callback retains `caseId`, `correlationId`, `causationId`, and `taskInvocationId`; its stable event ID is `<taskInvocationId>:result`. The generic core checks current invocation linkage because investigation edges declare `taskResult: true`. Diagnosis validates refund-specific evidence and its bounded output; the core does not embed refund payload rules.
 
 ## Build and checks
 
 `npm run build` embeds validation and `runtime/diagnosis-*.js`/`runtime/demo-order-lookup.js` code. Native Data Table nodes supply both the payment evidence and machine catalog. Semantic criteria come from the case’s exact recorded machine version, not an embedded definition. `npm run validate` checks that generated code matches its sources. `tests/diagnosis.test.mjs` verifies response parsing, evidence guards, intake/reply aggregation, asynchronous callback wiring, and sanitized error escalation.
 
-The live demo was checked with real Jev calls: missing information asked for details; a reply identifying order 1042 produced a EUR 25 proposal; a request attempting to bypass approval and obtain EUR 5,000 still produced only a EUR 25 proposal awaiting human approval. Model choices can vary; these observations are demo checks rather than a general model-accuracy benchmark.
+To demonstrate the adapter after coordinated rollout, try a vague request, a duplicate-charge request with a known order, and a request for an inflated amount. Model choices may vary. The invariant is that task evidence supplies the payment fields and every refund recommendation still requires human approval. The actual Jev HTTP request is real; all payments are simulated.

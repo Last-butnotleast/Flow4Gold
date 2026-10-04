@@ -43,12 +43,15 @@ export function parseMachine(input) {
         unsupported(transition, path, ['guard', 'guards', 'cond', 'actions', 'action', 'internal', 'reenter']);
         const target = string(transition.target, `${path}.target`);
         if (!Object.hasOwn(states, target)) throw new Error(`${path} targets unknown state "${target}".`);
+        if (transition.taskResult !== undefined && transition.taskResult !== true) throw new Error(`${path}.taskResult must be true when declared.`);
+        if (transition.taskResult && state.tasks?.length !== 1) throw new Error(`${path}.taskResult requires exactly one task on the source state.`);
         optionalString(transition.description, `${path}.description`);
         optionalString(transition.outcome, `${path}.outcome`);
       }
     }
     if (state.final && (events.size || state.tasks?.length)) throw new Error(`Final state "${id}" cannot have outgoing transitions or tasks.`);
   }
+  if (states[initial].tasks?.length) throw new Error('Initial state must be passive; tasks run only after an accepted transition.');
   return input;
 }
 export function canonicalJson(value) {
@@ -56,21 +59,29 @@ export function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
 }
-/** Stored catalog has one default and immutable, unique machine/version identities. */
-export function parseMachineCatalog(rows) {
+/** Validate definition identities independently of editor/default metadata. */
+export function parseMachineDefinitions(rows) {
   if (!Array.isArray(rows)) throw new Error('Machine catalog rows must be an array.');
   const identities = new Set();
-  const machines = rows.map(row => {
+  return rows.map(row => {
     object(row, 'Machine catalog row');
     if (typeof row.definition !== 'string') throw new Error('Stored machine definition must be JSON text.');
     let definition;
     try { definition = parseMachine(JSON.parse(row.definition)); }
     catch (error) { throw new Error(`Invalid stored machine definition: ${error.message}`); }
-    if (row.machine !== definition.machine || row.version !== definition.version || typeof row.isDefault !== 'boolean') throw new Error('Machine catalog identity or default flag does not match its definition.');
+    if (row.machine !== definition.machine || row.version !== definition.version) throw new Error('Machine catalog identity does not match its definition.');
     const identity = JSON.stringify([row.machine, row.version]);
     if (identities.has(identity)) throw new Error('Duplicate machine/version catalog rows require correction.');
     identities.add(identity);
-    return {machine:row.machine, version:row.version, definition, isDefault:row.isDefault};
+    return definition;
+  });
+}
+/** Editor/catalog defaults do not select runtime case identity. */
+export function parseMachineCatalog(rows) {
+  const definitions = parseMachineDefinitions(rows);
+  const machines = rows.map((row,index) => {
+    if (typeof row.isDefault !== 'boolean') throw new Error('Machine catalog default flag must be a boolean.');
+    return {machine:row.machine, version:row.version, definition:definitions[index], isDefault:row.isDefault};
   });
   const defaults = machines.filter(machine => machine.isDefault);
   if (defaults.length !== 1) throw new Error('Machine catalog must contain exactly one default definition.');

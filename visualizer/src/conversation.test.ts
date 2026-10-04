@@ -38,7 +38,3 @@ describe('human review conversation',()=>{
     expect(conversationStatus({state:'HUMAN_REVIEW',machine:{states:{HUMAN_REVIEW:{tasks:['human_review']}}}} as unknown as LiveCase).hint).toContain('follow-up question');
   });
 });
-
-it('does not imply an older human-review case has a Discord task',()=>{
-  expect(conversationStatus({state:'HUMAN_REVIEW',machine:{states:{HUMAN_REVIEW:{}}}} as unknown as LiveCase).hint).toContain('No automated review task');
-});

@@ -3,7 +3,7 @@ import {ReactFlowProvider} from '@xyflow/react';
 import {Layers2,MessagesSquare,Package,GitBranch,Plus,SlidersHorizontal,ArrowUpRight} from 'lucide-react';
 import {api,casePath,type LiveCase} from './live';
 import {parseMachine,type Machine} from './machine';
-import latest from '../../machines/customer-refund.v3.json';
+import latest from '../../machines/customer-refund.v1.json';
 import {LivePanel} from './components/LivePanel';
 import {LiveGraph} from './components/LiveGraph';
 import {CaseInspector} from './components/CaseInspector';

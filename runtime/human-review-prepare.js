@@ -2,11 +2,11 @@ const invocation = $('Receive Task').first().json;
 for (const key of ['caseId', 'triggerEventId', 'taskInvocationId', 'correlationId']) {
   if (typeof invocation[key] !== 'string' || !invocation[key].trim()) throw new Error('Missing review invocation field: ' + key);
 }
-if (invocation.task !== 'human_review' || invocation.machine !== 'customer-refund' || invocation.machineVersion !== 3 ||
+if (invocation.task !== 'human_review' || invocation.machine !== 'customer-refund' || (!Number.isSafeInteger(invocation.machineVersion) || invocation.machineVersion < 1) ||
     invocation.state !== 'HUMAN_REVIEW' || invocation.taskInvocationId !== invocation.triggerEventId + ':human_review') throw new Error('Unexpected human review invocation');
 const rows = $('Read Case Events').all().map(item => item.json).filter(row => row.caseId === invocation.caseId).sort((a,b) => a.sequence-b.sequence);
 const matches = rows.filter(row => row.eventId === invocation.triggerEventId);
-if (matches.length !== 1 || matches[0].type !== 'ESCALATE' || matches[0].machineVersion !== 3 || matches[0].correlationId !== invocation.correlationId) throw new Error('Missing recorded escalation');
+if (matches.length !== 1 || matches[0].type !== 'ESCALATE' || matches[0].machine !== invocation.machine || matches[0].machineVersion !== invocation.machineVersion || matches[0].correlationId !== invocation.correlationId) throw new Error('Missing recorded escalation');
 const trigger = matches[0];
 const events = rows.filter(row => row.sequence <= trigger.sequence).map(row => ({ ...row, data: JSON.parse(row.payload) }));
 let orderReference = '';

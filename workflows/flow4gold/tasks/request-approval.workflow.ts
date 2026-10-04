@@ -2,12 +2,13 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 
 // <workflow-map>
 // Workflow : Flow4Gold - Request Approval
-// Nodes   : 7  |  Connections: 5
+// Nodes   : 8  |  Connections: 6
 //
 // NODE INDEX
 // ──────────────────────────────────────────────────────────────────
 // Property name                    Node type (short)         Flags
 // ReceiveTask                        executeWorkflowTrigger
+// ReadCaseEvents                     dataTable
 // PrepareApproval                    code
 // PostToDiscord                      discord                    [creds]
 // WaitForDecision                    wait
@@ -18,7 +19,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // ROUTING MAP
 // ──────────────────────────────────────────────────────────────────
 // ReceiveTask
-//    → PrepareApproval
+//    → ReadCaseEvents → PrepareApproval
 //      → PostToDiscord
 //        → WaitForDecision
 //          → BuildApprovalResult
@@ -34,6 +35,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
     name: 'Flow4Gold - Request Approval',
     active: true,
     isArchived: false,
+    projectId: '8d5DQtHZkgLco5Yr',
     settings: { executionOrder: 'v1' },
 })
 export class Flow4goldRequestApprovalWorkflow {
@@ -53,6 +55,22 @@ export class Flow4goldRequestApprovalWorkflow {
     };
 
     @node({
+        id: 'flow4gold-approval-read-case-events',
+        name: 'Read Case Events',
+        type: 'n8n-nodes-base.dataTable',
+        version: 1.1,
+        position: [120, 0],
+        alwaysOutputData: true,
+    })
+    ReadCaseEvents = {
+        resource: 'row', operation: 'get',
+        dataTableId: { __rl: true, value: 'TjuB58skTvPRCwB3', mode: 'id' },
+        matchType: 'allConditions',
+        filters: { conditions: [{ keyName: 'caseId', condition: 'eq', keyValue: '={{ $json.caseId }}' }] },
+        returnAll: true,
+    };
+
+    @node({
         id: '31312854-4c29-4712-850a-73f8d682f865',
         name: 'Prepare Approval',
         type: 'n8n-nodes-base.code',
@@ -61,19 +79,28 @@ export class Flow4goldRequestApprovalWorkflow {
     })
     PrepareApproval = {
         mode: 'runOnceForAllItems',
-        jsCode: `const invocation = $input.first().json;
+        jsCode: `const invocation = $('Receive Task').first().json;
 for (const field of ['caseId', 'triggerEventId', 'taskInvocationId', 'correlationId']) {
   if (typeof invocation[field] !== 'string' || !invocation[field].trim()) {
     throw new Error('Missing task invocation field: ' + field);
   }
 }
 if (invocation.task !== 'request_approval' || invocation.machine !== 'customer-refund' ||
-    ![2, 3].includes(invocation.machineVersion) || invocation.state !== 'AWAITING_APPROVAL' ||
+    (!Number.isSafeInteger(invocation.machineVersion) || invocation.machineVersion < 1) || invocation.state !== 'AWAITING_APPROVAL' ||
     invocation.taskInvocationId !== invocation.triggerEventId + ':request_approval') {
   throw new Error('Unexpected approval invocation');
 }
-const proposal = invocation.input;
-if (!proposal || typeof proposal.amount !== 'number' || !Number.isFinite(proposal.amount) || proposal.amount <= 0 ||
+const rows = $input.all().map(item => item.json).filter(row => row.eventId === invocation.triggerEventId);
+if (rows.length !== 1) throw new Error('Expected one recorded refund proposal');
+const recorded = rows[0];
+if (recorded.type !== 'REFUND_RECOMMENDED' || recorded.caseId !== invocation.caseId ||
+    recorded.machine !== invocation.machine || recorded.machineVersion !== invocation.machineVersion ||
+    recorded.correlationId !== invocation.correlationId) throw new Error('Recorded proposal identity does not match approval invocation');
+const proposal = JSON.parse(recorded.payload);
+for (const field of ['amount', 'currency', 'paymentReference', 'reason']) {
+  if (invocation.input?.[field] !== proposal?.[field]) throw new Error('Invocation differs from recorded refund proposal');
+}
+if (!proposal || typeof proposal.amount !== 'number' || !Number.isFinite(proposal.amount) || proposal.amount <= 0 || proposal.amount > 1000000 || Math.abs(proposal.amount * 100 - Math.round(proposal.amount * 100)) > 0.000001 ||
     typeof proposal.currency !== 'string' || !/^[A-Z]{3}$/.test(proposal.currency) ||
     typeof proposal.paymentReference !== 'string' || !proposal.paymentReference.trim() ||
     typeof proposal.reason !== 'string' || !proposal.reason.trim()) {
@@ -219,7 +246,8 @@ Posts the recorded proposal via the saved Discord webhook. Only this task waits;
 
     @links()
     defineRouting() {
-        this.ReceiveTask.out(0).to(this.PrepareApproval.in(0));
+        this.ReceiveTask.out(0).to(this.ReadCaseEvents.in(0));
+        this.ReadCaseEvents.out(0).to(this.PrepareApproval.in(0));
         this.PrepareApproval.out(0).to(this.PostToDiscord.in(0));
         this.PostToDiscord.out(0).to(this.WaitForDecision.in(0));
         this.WaitForDecision.out(0).to(this.BuildApprovalResult.in(0));

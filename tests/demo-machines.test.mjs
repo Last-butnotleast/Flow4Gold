@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {request} from 'node:http';
-import {createDemoServer} from '../server/demo-server.mjs';
+import {createDemoServer,paymentMachine} from '../server/demo-server.mjs';
 import {parseMachine,canonicalJson,parseMachineCatalog} from '../shared/machine-validation.mjs';
 const definition={machine:'sample',version:1,initial:'OPEN',states:{OPEN:{on:{RECEIVED:{target:'CLOSED'}}},CLOSED:{final:true}}};
 const stored=(definition,isDefault=false)=>({machine:definition.machine,version:definition.version,definition:canonicalJson(definition),isDefault});
@@ -39,11 +39,12 @@ test('machine saves are immutable, idempotent and never activate new definitions
     const conflict=await call('/api/machines',{definition:{...definition,description:'changed'}});assert.equal(conflict.status,409);
     const next={...definition,version:2};const created=await call('/api/machines',{definition:next});assert.equal(created.status,201);assert.equal(created.body.created,true);assert.equal(created.body.machine.isDefault,false);
     assert.equal(rows.length,2);assert.equal(rows[0].isDefault,true);assert.equal(rows[1].isDefault,false);
-    assert.deepEqual((await call('/api/config')).body.machine,definition);
+    const refund = {...definition,machine:'customer-refund'};rows.push(stored(refund));
+    assert.deepEqual((await call('/api/config')).body.machine,refund);
     assert.deepEqual((await call('/api/cases/case-1')).body.machine,definition);
     assert.equal((await call('/api/machines',{definition:next,isDefault:true})).status,400);
     assert.equal((await call('/api/machines',{definition:{...next,initial:'missing'}})).status,400);
-    assert.equal(rows.length,2);
+    assert.equal(rows.length,3);
   });
 });
 test('catalog reads and writes fail closed on duplicate or malformed stored identities',async()=>{
@@ -64,4 +65,11 @@ test('machine saves accept definitions above 8 KiB but reject requests above 256
     assert.equal(calls.filter(call=>call.options.method==='POST').length,writes);
     assert.equal(rows.length,2);
   });
+});
+
+test('payment UI chooses its explicit refund contract independently of catalog defaults and saved drafts',()=>{
+  const refund={...definition,machine:'customer-refund'};
+  const catalog=parseMachineCatalog([initial,stored(refund),stored({...refund,version:2})]);
+  assert.deepEqual(paymentMachine(catalog),refund);
+  assert.throws(()=>paymentMachine(parseMachineCatalog([initial])),{status:502});
 });

@@ -5,60 +5,113 @@
   "states": {
     "OPEN": {
       "on": {
-        "RECEIVED": { "target": "INVESTIGATING" }
+        "RECEIVED": {
+          "target": "INVESTIGATING"
+        }
       }
     },
     "INVESTIGATING": {
-      "tasks": ["diagnose"],
+      "tasks": [
+        "diagnose"
+      ],
       "decide": {
         "REFUND_RECOMMENDED": {
           "target": "AWAITING_APPROVAL",
-          "description": "The available evidence supports a refund for this case."
+          "description": "The available evidence supports a refund for this case.",
+          "taskResult": true
         },
         "NEED_MORE_INFO": {
           "target": "WAITING_CUSTOMER",
-          "description": "Required information is missing and must be supplied by the customer."
+          "description": "Required information is missing and must be supplied by the customer.",
+          "taskResult": true
         },
         "ESCALATE": {
           "target": "HUMAN_REVIEW",
-          "description": "The case requires human judgment before it can proceed."
+          "description": "The case requires human judgment before it can proceed.",
+          "taskResult": true
         }
       }
     },
     "WAITING_CUSTOMER": {
       "on": {
-        "CUSTOMER_REPLIED": { "target": "INVESTIGATING" }
+        "CUSTOMER_REPLIED": {
+          "target": "INVESTIGATING"
+        }
       }
     },
     "HUMAN_REVIEW": {
+      "tasks": [
+        "human_review"
+      ],
       "on": {
-        "RESUME": { "target": "INVESTIGATING" },
-        "REJECTED": { "target": "CLOSED", "outcome": "REJECTED" }
+        "REVIEW_APPROVED": {
+          "target": "EXECUTING",
+          "taskResult": true
+        },
+        "REJECTED": {
+          "target": "CLOSED",
+          "outcome": "REJECTED",
+          "taskResult": true
+        },
+        "NEED_MORE_INFO": {
+          "target": "WAITING_CUSTOMER",
+          "taskResult": true
+        }
       }
     },
     "AWAITING_APPROVAL": {
+      "tasks": [
+        "request_approval"
+      ],
       "on": {
-        "APPROVED": { "target": "EXECUTING" },
-        "REJECTED": { "target": "CLOSED", "outcome": "REJECTED" }
+        "APPROVED": {
+          "target": "EXECUTING",
+          "taskResult": true
+        },
+        "REJECTED": {
+          "target": "CLOSED",
+          "outcome": "REJECTED",
+          "taskResult": true
+        }
       }
     },
     "EXECUTING": {
-      "tasks": ["issue_refund"],
+      "tasks": [
+        "issue_refund"
+      ],
       "on": {
-        "ACTION_COMPLETED": { "target": "VERIFYING" },
-        "ACTION_FAILED": { "target": "RECONCILING" }
+        "ACTION_COMPLETED": {
+          "target": "VERIFYING",
+          "taskResult": true
+        },
+        "ACTION_FAILED": {
+          "target": "RECONCILING",
+          "taskResult": true
+        }
       }
     },
     "VERIFYING": {
-      "tasks": ["verify_refund"],
+      "tasks": [
+        "verify_refund"
+      ],
       "on": {
-        "REFUND_CONFIRMED": { "target": "CLOSED", "outcome": "REFUNDED" },
-        "REFUND_UNCONFIRMED": { "target": "RECONCILING" }
+        "REFUND_CONFIRMED": {
+          "target": "CLOSED",
+          "outcome": "REFUNDED",
+          "taskResult": true
+        },
+        "REFUND_UNCONFIRMED": {
+          "target": "RECONCILING",
+          "taskResult": true
+        }
       }
     },
     "RECONCILING": {
       "on": {
-        "REFUND_CONFIRMED": { "target": "CLOSED", "outcome": "REFUNDED" }
+        "REFUND_CONFIRMED": {
+          "target": "CLOSED",
+          "outcome": "REFUNDED"
+        }
       }
     },
     "CLOSED": {

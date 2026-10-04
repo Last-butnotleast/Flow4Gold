@@ -4,7 +4,7 @@ if (items.length !== 1) throw new Error('Submit exactly one request per executio
 const input = items[0].json;
 if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Input must be an object.');
 const inspect = input.operation === 'inspect';
-const allowed = inspect ? ['caseId', 'operation'] : ['caseId', 'eventId', 'type', 'payload', 'causationId', 'correlationId', 'taskInvocationId'];
+const allowed = inspect ? ['caseId', 'operation'] : ['caseId', 'eventId', 'type', 'payload', 'causationId', 'correlationId', 'taskInvocationId', 'machine', 'machineVersion'];
 if (Object.keys(input).some(key => !allowed.includes(key))) throw new Error('Unknown input field; state is reconstructed from events.');
 for (const key of inspect ? ['caseId'] : ['caseId', 'eventId', 'type']) {
   if (typeof input[key] !== 'string' || !input[key].trim() || input[key] !== input[key].trim()) throw new Error(`${key} must be a nonempty string without surrounding whitespace.`);
@@ -13,6 +13,8 @@ if (inspect) return [{ json: { request: { caseId: input.caseId, operation: 'insp
 for (const key of ['causationId', 'correlationId', 'taskInvocationId']) {
   if (input[key] !== undefined && (typeof input[key] !== 'string' || input[key] !== input[key].trim() || (key !== 'causationId' && !input[key]))) throw new Error(`${key} must be a string without surrounding whitespace; correlationId/taskInvocationId cannot be empty.`);
 }
+if ((input.machine === undefined) !== (input.machineVersion === undefined)) throw new Error('machine and machineVersion must be supplied together.');
+if (input.machine !== undefined && (typeof input.machine !== 'string' || !input.machine.trim() || input.machine.trim() !== input.machine || !Number.isSafeInteger(input.machineVersion) || input.machineVersion < 1)) throw new Error('machine must be a nonempty string and machineVersion a positive integer.');
 const payload = input.payload === undefined ? {} : input.payload;
 if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('payload must be a JSON object.');
-return [{ json: { request: { caseId: input.caseId, eventId: input.eventId, type: input.type, payload, causationId: input.causationId ?? '', taskInvocationId: input.taskInvocationId ?? '', ...(input.correlationId === undefined ? {} : { correlationId: input.correlationId }) } } }];
+return [{ json: { request: { caseId: input.caseId, eventId: input.eventId, type: input.type, payload, causationId: input.causationId ?? '', taskInvocationId: input.taskInvocationId ?? '', ...(input.correlationId === undefined ? {} : { correlationId: input.correlationId }), ...(input.machine === undefined ? {} : { machine: input.machine, machineVersion: input.machineVersion }) } } }];

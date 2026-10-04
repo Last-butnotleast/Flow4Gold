@@ -8,7 +8,13 @@ const payload = {reviewEventId:invocation.triggerEventId,message};
 let type = 'REJECTED';
 if (decision === 'Approve refund') {
   const order = invocation.order;
-  if (!order) throw new Error('Cannot approve without a recorded sample payment; ask customer for the order reference');
+  if (!order || invocation.orderLookupIssue || typeof order.amount !== 'number' || !Number.isFinite(order.amount) ||
+      order.amount <= 0 || order.amount > 1000000 || Math.abs(order.amount * 100 - Math.round(order.amount * 100)) > 0.000001 ||
+      typeof order.currency !== 'string' || !/^[A-Z]{3}$/.test(order.currency) ||
+      typeof order.paymentReference !== 'string' || !order.paymentReference.trim() ||
+      typeof order.orderReference !== 'string' || !order.orderReference.trim()) {
+    throw new Error('Cannot approve without a valid recorded sample payment; ask customer for the order reference');
+  }
   payload.proposal = {orderReference:order.orderReference,amount:order.amount,currency:order.currency,paymentReference:order.paymentReference,reason:message,simulation:true};
   type = 'REVIEW_APPROVED';
 } else if (decision === 'Ask customer') type = 'NEED_MORE_INFO';

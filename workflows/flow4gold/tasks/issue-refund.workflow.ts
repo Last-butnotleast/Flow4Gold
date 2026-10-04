@@ -31,6 +31,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
     name: 'Flow4Gold - Issue Refund (Simulated)',
     active: true,
     isArchived: false,
+    projectId: '8d5DQtHZkgLco5Yr',
     settings: { executionOrder: 'v1' },
 })
 export class Flow4goldIssueRefundSimulatedWorkflow {
@@ -63,9 +64,9 @@ for (const field of ['caseId', 'triggerEventId', 'taskInvocationId', 'correlatio
   if (typeof invocation[field] !== 'string' || !invocation[field].trim()) throw new Error('Missing task invocation field: ' + field);
 }
 if (invocation.task !== 'issue_refund' || invocation.state !== 'EXECUTING' || invocation.machine !== 'customer-refund' ||
-    ![2, 3].includes(invocation.machineVersion) || invocation.taskInvocationId !== invocation.triggerEventId + ':issue_refund' ||
+    (!Number.isSafeInteger(invocation.machineVersion) || invocation.machineVersion < 1) || invocation.taskInvocationId !== invocation.triggerEventId + ':issue_refund' ||
     !invocation.input || typeof invocation.input !== 'object' || Array.isArray(invocation.input)) {
-  throw new Error('Unexpected issue_refund invocation; only proposal-bound machines v2/v3 are supported');
+  throw new Error('Unexpected issue_refund invocation; a positive pinned refund machine version is required');
 }
 return [{ json: invocation }];`,
     };
@@ -124,10 +125,11 @@ function proposalFor(approval) {
   if (approval.type === 'REVIEW_APPROVED') {
     const review = event(approval.causationId, 'ESCALATE');
     const p = approval.data.proposal;
-    if (invocation.machineVersion !== 3 || approval.data.reviewEventId !== review.eventId ||
+    if (approval.data.reviewEventId !== review.eventId || typeof approval.data.message !== 'string' || !approval.data.message.trim() ||
+        !p || p.simulation !== true || typeof p.orderReference !== 'string' || !p.orderReference.trim() ||
         approval.taskInvocationId !== review.eventId + ':human_review' ||
         approval.eventId !== approval.taskInvocationId + ':result' || approval.sequence !== review.sequence + 1 ||
-        !p || typeof p.amount !== 'number' || !Number.isFinite(p.amount) || p.amount <= 0 ||
+        !p || typeof p.amount !== 'number' || !Number.isFinite(p.amount) || p.amount <= 0 || p.amount > 1000000 || Math.abs(p.amount * 100 - Math.round(p.amount * 100)) > 0.000001 ||
         typeof p.currency !== 'string' || !/^[A-Z]{3}$/.test(p.currency) ||
         typeof p.paymentReference !== 'string' || !p.paymentReference.trim() ||
         typeof p.reason !== 'string' || !p.reason.trim()) throw new Error('Invalid recorded human review approval');
@@ -139,7 +141,7 @@ function proposalFor(approval) {
     throw new Error('Approval is not linked to the recorded proposal');
   }
   const p = proposal.data;
-  if (typeof p.amount !== 'number' || !Number.isFinite(p.amount) || p.amount <= 0 ||
+  if (typeof p.amount !== 'number' || !Number.isFinite(p.amount) || p.amount <= 0 || p.amount > 1000000 || Math.abs(p.amount * 100 - Math.round(p.amount * 100)) > 0.000001 ||
       typeof p.currency !== 'string' || !/^[A-Z]{3}$/.test(p.currency) ||
       typeof p.paymentReference !== 'string' || !p.paymentReference.trim() ||
       typeof p.reason !== 'string' || !p.reason.trim()) throw new Error('Invalid recorded proposal');

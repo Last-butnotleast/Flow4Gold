@@ -5,7 +5,7 @@ const review=await compiledWorkflow('workflows/flow4gold/tasks/human-review.work
 const issue=await compiledWorkflow('workflows/flow4gold/tasks/issue-refund.workflow.ts');
 const verify=await compiledWorkflow('workflows/flow4gold/tasks/verify-refund.workflow.ts');
 const run=(workflow,name,items,previous={})=>new Function('$input','$',workflow.nodes.find(n=>n.name===name).parameters.jsCode)({first:()=>({json:items[0]}),all:()=>items.map(json=>({json}))},name=>({first:()=>({json:previous[name]}),all:()=>previous[name].map(json=>({json}))}))[0].json;
-const invocation={caseId:'review-case',triggerEventId:'escalation',taskInvocationId:'escalation:human_review',correlationId:'review-case',machine:'customer-refund',machineVersion:3,state:'HUMAN_REVIEW',task:'human_review',input:{reason:'No duplicate evidence'}};
+const invocation={caseId:'review-case',triggerEventId:'escalation',taskInvocationId:'escalation:human_review',correlationId:'review-case',machine:'customer-refund',machineVersion:1,state:'HUMAN_REVIEW',task:'human_review',input:{reason:'No duplicate evidence'}};
 const row=(eventId,type,sequence,payload,extra={})=>({...invocation,eventId,type,sequence,payload:JSON.stringify(payload),...extra});
 const history=()=>[row('received','RECEIVED',1,{message:'Please refund order 1043'}),row('escalation','ESCALATE',2,{reason:'No duplicate evidence'})];
 const orders=[{orderReference:'1043',itemName:'Weekend bag',amount:40,currency:'EUR',paymentReference:'demo-payment-1043',duplicateCharge:false}];
@@ -50,4 +50,10 @@ test('review captures native payment snapshot and refuses duplicate/invalid reco
  assert.equal(review.nodes.find(n=>n.name==='Read Demo Orders').parameters.dataTableId.value,'1NakvVeVYx0CI2hU');
  const snapshot=prepare();orders[0].amount=80;assert.equal(decide('Approve refund','Approved captured payment',snapshot).payload.proposal.amount,40);orders[0].amount=40;
  for(const records of [[],[orders[0],orders[0]],[{...orders[0],currency:'bad'}]]){const prepared=prepare(history(),records);assert.equal(prepared.order,null);assert.throws(()=>decide('Approve refund','reason',prepared));}
+});
+
+
+test('review rejects mismatched recorded escalation and invalid proposal snapshots at its boundary',()=>{
+ for(const change of [{machine:'other'},{machineVersion:9},{correlationId:'other'},{type:'REFUND_RECOMMENDED'}]){const rows=history();Object.assign(rows[1],change);assert.throws(()=>prepare(rows));}
+ for(const change of [{amount:0},{amount:40.005},{currency:'eur'},{paymentReference:''},{orderReference:''}])assert.throws(()=>decide('Approve refund','reason',{...prepare(),order:{...orders[0],...change}}));
 });

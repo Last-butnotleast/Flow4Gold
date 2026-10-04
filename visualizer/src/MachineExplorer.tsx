@@ -44,7 +44,7 @@ import {
 
 import example from "../../machines/customer-refund.v1.json";
 
-import v3 from "../../machines/customer-refund.v3.json";
+import refund from "../../machines/customer-refund.v1.json";
 import { parseMachine, type Machine } from "./machine";
 import {api} from "./live";
 import {validateEditor,machineKey,sourceOf,nextDraftVersion,type CatalogEntry,type MachineCatalog} from "./machineEditor";
@@ -94,11 +94,11 @@ function saveJson(machine: Machine) {
 
 export default function MachineExplorer() {
   const liveMode = false;
-  const [machine, setMachine] = useState<Machine>(()=>parseMachine(v3));
-  const [source,setSource]=useState(()=>sourceOf(parseMachine(v3)));
-  const [baseline,setBaseline]=useState(()=>sourceOf(parseMachine(v3)));
-  const [validatedSource,setValidatedSource]=useState(()=>sourceOf(parseMachine(v3)));
-  const [validation,setValidation]=useState(()=>validateEditor(sourceOf(parseMachine(v3))));
+  const [machine, setMachine] = useState<Machine>(()=>parseMachine(refund));
+  const [source,setSource]=useState(()=>sourceOf(parseMachine(refund)));
+  const [baseline,setBaseline]=useState(()=>sourceOf(parseMachine(refund)));
+  const [validatedSource,setValidatedSource]=useState(()=>sourceOf(parseMachine(refund)));
+  const [validation,setValidation]=useState(()=>validateEditor(sourceOf(parseMachine(refund))));
   const [catalog,setCatalog]=useState<CatalogEntry[]>([]);
   const [catalogError,setCatalogError]=useState('');
   const [catalogLoading,setCatalogLoading]=useState(true);

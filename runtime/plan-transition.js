@@ -1,5 +1,5 @@
 // Pure replay and planning. Only the downstream Append Event node writes.
-const { request, definition: defaultDefinition, definitions } = $('Load Machine Definitions').first().json;
+const { request, definitions } = $('Load Machine Definitions').first().json;
 // Empty query placeholders must not include unrelated malformed rows.
 const rows = $input.all().map(item => item.json).filter(row => row.caseId === request.caseId
   || (request.eventId && row.eventId === request.eventId)
@@ -10,10 +10,15 @@ const canonical = value => JSON.stringify(value === null || typeof value !== 'ob
   : Object.fromEntries(Object.keys(value).sort().map(key => [key, JSON.parse(canonical(value[key]))])));
 const isId = value => typeof value === 'string' && value.length > 0 && value.trim() === value;
 const stream = rows.filter(row => row.caseId === request.caseId).sort((a, b) => a.sequence - b.sequence);
-const definition = stream.length
-  ? definitions.find(item => item.machine === stream[0].machine && item.version === stream[0].machineVersion)
-  : defaultDefinition;
-if (!definition) return [{ json: { action: 'return', result: { caseId: request.caseId, eventId: request.eventId ?? null, status: 'rejected', reason: 'Unsupported persisted machine version.' } } }];
+const beforeReplay = (status, reason) => [{ json: { action: 'return', result: {
+  caseId: request.caseId, eventId: request.eventId ?? null, status, reason, currentState: null, outcome: null, sequence: 0,
+} } }];
+if (!stream.length && request.operation === 'inspect') return beforeReplay('not_found', 'Case has no recorded events.');
+if (!stream.length && request.machine === undefined) return beforeReplay('rejected', 'A new case requires explicit machine and machineVersion.');
+if (stream.length && request.machine !== undefined && (request.machine !== stream[0].machine || request.machineVersion !== stream[0].machineVersion)) return beforeReplay('rejected', 'Case machine and version are pinned by its first event.');
+const identity = stream.length ? { machine: stream[0].machine, version: stream[0].machineVersion } : { machine: request.machine, version: request.machineVersion };
+const definition = definitions.find(item => item.machine === identity.machine && item.version === identity.version);
+if (!definition) return beforeReplay('rejected', 'Unknown machine or version.');
 let currentState = definition.initial, outcome = null, sequence = 0;
 let correlationId = request.correlationId ?? stream[0]?.correlationId ?? request.caseId;
 const output = (result, extra = {}) => [{ json: { action: 'return', result: {
@@ -48,34 +53,8 @@ const seen = new Set();
 let previousEvent;
 const validInvocation = (event, state, trigger) => {
   const invocationId = event.taskInvocationId ?? '';
-  const approval = definition.version >= 2 && state === 'AWAITING_APPROVAL'
-    && ['APPROVED', 'REJECTED'].includes(event.type);
-  if (approval) {
-    const payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
-    if (!invocationId || !trigger || trigger.type !== 'REFUND_RECOMMENDED'
-      || !payload || Object.keys(payload).length !== 1 || payload.proposalEventId !== trigger.eventId) return false;
-  }
-  const review = definition.version >= 3 && state === 'HUMAN_REVIEW';
-  if (review) {
-    const payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload;
-    const approved = event.type === 'REVIEW_APPROVED';
-    if (!['REVIEW_APPROVED', 'REJECTED', 'NEED_MORE_INFO'].includes(event.type)
-      || !invocationId || !trigger || trigger.type !== 'ESCALATE'
-      || !payload || payload.reviewEventId !== trigger.eventId
-      || !isId(payload.message) || payload.message.length > 4000
-      || Object.keys(payload).length !== (approved ? 3 : 2)) return false;
-    if (approved) {
-      const proposal = payload.proposal;
-      const keys = ['amount', 'currency', 'paymentReference', 'orderReference', 'reason', 'simulation'];
-      if (!proposal || typeof proposal !== 'object' || Array.isArray(proposal)
-        || Object.keys(proposal).length !== keys.length || keys.some(key => !has(proposal, key))
-        || !Number.isFinite(proposal.amount) || proposal.amount <= 0
-        || !/^[A-Z]{3}$/.test(proposal.currency) || !isId(proposal.paymentReference)
-        || !isId(proposal.orderReference) || proposal.reason !== payload.message
-        || proposal.simulation !== true) return false;
-    }
-  }
-  if (!invocationId) return true;
+  const requiresResult = transition(state, event.type)?.taskResult === true;
+  if (!invocationId) return !requiresResult;
   const tasks = definition.states[state].tasks || [];
   return tasks.length === 1 && trigger && event.causationId === trigger.eventId
     && invocationId === `${trigger.eventId}:${tasks[0]}` && event.eventId === `${invocationId}:result`;
@@ -85,7 +64,6 @@ for (const event of stream) {
   if (event.correlationId !== stream[0].correlationId) return reject('Event stream correlationId changed.');
   const localCause = stream.find(candidate => candidate.eventId === event.causationId);
   if (localCause && !seen.has(localCause.eventId)) return reject('Event stream has a forward causation reference.');
-  if (sequence === 0 && event.type !== 'RECEIVED') return reject('Event stream must begin with RECEIVED.');
   if (!validInvocation(event, currentState, previousEvent)) return reject('Event stream contains an invalid task invocation.');
   const edge = transition(currentState, event.type);
   if (!edge) return reject('Event stream contains an illegal transition.');
@@ -111,7 +89,6 @@ if (duplicate) {
   return output({ status: 'duplicate' });
 }
 if (!validInvocation(request, currentState, stream.at(-1))) return reject('Task result does not match the current task invocation.');
-if (!stream.length && request.type !== 'RECEIVED') return reject('A new case requires RECEIVED.');
 const edge = transition(currentState, request.type);
 if (!edge) return reject('Event is not enabled in the current state.');
 const tasks = definition.states[edge.target].tasks || [];

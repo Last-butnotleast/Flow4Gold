@@ -1,5 +1,7 @@
 # Event store
 
+**Local redesign:** see [deployment checkpoints](../docs/generic-runtime.md). Remote schemas/data below still need the coordinated phase-2 reset; the updated binding CSV describes the target schema.
+
 `case_event_stream` is the authoritative store. The runtime rebuilds each case by replaying its accepted events in sequence; it does not need a case snapshot or a second history write.
 
 The table was created through the n8n public API in the workflows' project (`8d5DQtHZkgLco5Yr`). Its ID is `TjuB58skTvPRCwB3`. Columns and types were read back and verified. No manual import is needed for this instance.
@@ -29,16 +31,16 @@ See [the persistence contract](../docs/persistence.md) for runtime inputs and re
 
 ## Task bindings
 
-`task_bindings` maps machine task names to deployed workflow IDs. It is deployment configuration, not part of the immutable machine or event history. Created through the public API in the same project; table ID: `gYLwq6bG2pQQcF1w`.
+`task_bindings` maps `(machine, machineVersion, task)` to deployed workflow IDs. It is deployment configuration, not part of the immutable machine or event history. Created through the public API in the same project; table ID: `gYLwq6bG2pQQcF1w`.
 
 | Column | Type | Meaning |
 | --- | --- | --- |
+| `machine` | String | Machine identity |
+| `machineVersion` | Number | Definition version |
 | `task` | String | Symbolic task name from the entered machine state |
 | `workflowId` | String | n8n workflow implementing the task |
 
-Five rows exist: `diagnose` → `wkjUfwKoHZDmTAXW`, `request_approval` → `cL04Sd1GfOlJk0Te`, `issue_refund` → `QWAFL09ceL8nUa6y`, `verify_refund` → `9LZC7MMcWWLI4FN9`, and `human_review` → `QqlNaOkKKdpSGjO8`. Keep one binding per task; duplicate bindings are configuration errors. For another instance, import [task_bindings.csv](task_bindings.csv) and add the actual workflow IDs. Refund and verification bindings point to simulation-only workflows; no payment-provider credentials or API are connected.
-
-`taskInvocationId` was added to the existing event store without changing its rows. Older null values are treated as empty (external events). New task callbacks retain this field for replay and duplicate checks.
+Keep one binding per `(machine, machineVersion, task)` tuple; missing or duplicate matches prevent task dispatch. Import [task_bindings.csv](task_bindings.csv) as a schema reference and populate the actual workflow IDs. The fresh refund seed needs five bindings: `diagnose`, `request_approval`, `human_review`, `issue_refund`, and `verify_refund`. Payment tasks remain simulated.
 
 ## Demo orders
 
@@ -60,4 +62,4 @@ The local API generates unique references for newly created samples and supports
 
 ## Machine definitions
 
-`machine_definitions` (`Lm8JZL9uCNqj14vE`) stores `machine` (String), `version` (Number), `definition` (String containing JSON), and `isDefault` (Boolean). Use [machine_definitions.csv](machine_definitions.csv) as a schema header reference. Exactly one row must be the default; current default is customer-refund v3. Save validated, immutable versions through the frontend editor/API. See [the catalog contract](../docs/machine-editor.md) for loading and replay behavior.
+`machine_definitions` (`Lm8JZL9uCNqj14vE`) stores `machine` (String), `version` (Number), `definition` (String containing JSON), and `isDefault` (Boolean). Use [machine_definitions.csv](machine_definitions.csv) as a schema header reference. The editor/API catalog requires one default for display. The generic core does not use that flag: a new case selects its machine and version explicitly. Phase 2 will seed fresh customer-refund v1 and Flow4Gold submission v1 definitions. Save validated, immutable versions through the frontend editor/API. See [the catalog contract](../docs/machine-editor.md) for loading and replay behavior.

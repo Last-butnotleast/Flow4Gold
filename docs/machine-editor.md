@@ -1,51 +1,34 @@
 # Machine editor and catalog
 
-Open **Machine explorer** to edit machine JSON on the left and preview its graph on the right. Import a `.json` file or select a saved definition. Validation runs after a short typing pause. Syntax and graph errors stop preview updates; the last valid graph stays visible and is explicitly labeled stale. Invalid or pending validation cannot be saved.
+Machine explorer places editable JSON beside a graph preview. Import a document or select a saved definition. After a short typing pause, valid source updates the graph. Invalid source remains editable and the previous graph is labeled stale; invalid or pending validation cannot be saved.
 
-**Save new version** writes the exact validated editor document through the local server to n8n. It does not publish a workflow, activate a definition, dispatch a task, or change a running case. **Next version** helps create a new identity before saving an edited existing definition. Download exports the current editor text; unsaved edits remain protected when switching documents.
+This describes the local phase-1 contract; see [generic runtime status](generic-runtime.md) before running against the hosted instance.
 
-## Data Table
+**Save new version** stores the validated document. It does not publish workflows, start cases, execute tasks or change a running case. **Next version** proposes a new identity. Existing identities are immutable: identical content is a no-op; changed content at the same machine/version returns a conflict. Unsaved edits are protected when switching documents.
 
-`machine_definitions` table: `Lm8JZL9uCNqj14vE`.
+## Catalog
 
-| Column | Type | Purpose |
+`machine_definitions` stores:
+
+| Column | Type | Meaning |
 | --- | --- | --- |
 | `machine` | String | Machine identity |
-| `version` | Number | Immutable positive integer version |
-| `definition` | String | Complete validated JSON definition |
-| `isDefault` | Boolean | Selects the definition for new cases |
+| `version` | Number | Positive immutable version |
+| `definition` | String | Validated JSON |
+| `isDefault` | Boolean | Editor selection preference only |
 
-The catalog requires exactly one default. It currently selects `customer-refund` version 3. Historical refund versions 1 and 2, plus order-fulfilment preview examples, remain non-default. Existing cases select the identity/version recorded by their first event; changing the default does not migrate those histories.
+The default does not choose a runtime machine. New core cases explicitly supply `machine` and `machineVersion`; existing cases use their stream's pinned identity. Saves always use `isDefault:false`; the editor has no default-switch operation. The payment demo separately selects its compatible refund v1 adapter.
 
-The editor/API intentionally does not change the default flag. A new save always sets `isDefault:false`. Saving an identical definition again is a no-op; different content under the same machine/version returns a conflict. Catalog administration and task compatibility must be considered before selecting another runtime default.
+The editor, backend and runtime share `shared/machine-validation.mjs`. The supported graph has atomic states, ordinary/semantic transitions, optional outcomes, `taskResult` callback requirements, and at most one task per state. Validation rejects missing targets, ambiguous events, final-state work and unsupported executable features such as guards/actions/nested states. Descriptive metadata is preserved.
 
-Definitions use the current atomic-state subset: initial state, terminal states, `on`/`decide` transitions, descriptions/outcomes, and at most one task per state. Validation rejects missing targets, ambiguous events, work/outgoing transitions on final states, and unsupported executable fields such as guards, entry/exit actions and nested states. Additional descriptive metadata is preserved. The editor, backend and runtime share `shared/machine-validation.mjs`.
+Core Runtime and diagnosis read definitions through native Data Table nodes. No filesystem or embedded-definition fallback is used. Source JSON remains seed/reference material. Builds bundle interpreter code, not a fixed machine registry.
 
-## Runtime loading
+Saving a valid graph does not implement its tasks or task-specific policies. The generic runtime handles graph semantics; adapters handle business evidence. Merely saving or previewing an order-fulfilment definition never sends a customer message or changes a refund case.
 
-```text
-Receive request
-  → Read machine_definitions
-  → Validate catalog
-  → Read case events
-  → Select recorded version, or default for a new case
-  → Replay and validate
-  → Append / dispatch as before
-```
+## API
 
-Core Runtime and diagnosis use native n8n Data Table nodes. There is no embedded-definition or filesystem fallback in either workflow. Diagnosis obtains its semantic choices from the exact version assigned to its case. Builds still bundle interpreter/validation code, but changing catalog data does not require recompiling machine JSON into workflows.
+- `GET /api/machines` returns catalog entries plus the editor default identity.
+- `POST /api/machines` accepts `{ "definition": { ... } }`, with a 256 KiB request limit.
+- New saves return 201; identical saves return 200 without writing; conflicting identities return 409.
 
-Local files under `machines/` remain reference/seed examples. The backend gets both the editor catalog and a live case's graph definition from the Data Table, not those files.
-
-Saving a valid custom graph does not imply its tasks or business-specific policies are implemented. The current intake and task adapters remain the refund PoC. In particular, previewing an order-fulfilment definition does not turn it into an active application.
-
-## API and verification
-
-- `GET /api/machines`: saved definitions plus default identity.
-- `POST /api/machines`: `{ "definition": { ... } }`, up to 256 KiB; no caller-supplied activation flag.
-
-The browser never receives the n8n API key. The local bridge validates before writing and rejects duplicate/corrupt catalog entries.
-
-Live checks saved non-default `order-fulfilment` version 2 through the editor, reloaded it, verified invalid-preview blocking and a 409 conflict for changed version-1 content, and confirmed default refund v3 was unchanged. Existing refund v1 and v2 cases replayed with their original state/outcome through the updated core. No case events, tasks or Discord messages were created by these checks.
-
-Moving definitions into the catalog is one preparation step for the creator-portal submission. Consolidating the task workflows into a single submission workflow is still a separate step.
+The browser never receives the n8n API key. The local bridge validates the full catalog and rejects duplicate/corrupt identities. `/api/config` selects the payment adapter's definition; case inspection reads its exact pinned definition.

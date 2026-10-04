@@ -1,8 +1,8 @@
 import { describe, expect, it, vi, afterEach } from 'vitest';
 import { api, casePath, type CaseEvent } from './live';
 import { parseMachine } from './machine';
-import v2 from '../../machines/customer-refund.v2.json';
-const machine = parseMachine(v2);
+import refund from '../../machines/customer-refund.v1.json';
+const machine = parseMachine(refund);
 const events = (types: string[]): CaseEvent[] => types.map((type,index) => ({eventId:`event-${index}`,type,sequence:index+1,payload:{}}));
 afterEach(()=>vi.unstubAllGlobals());
 describe('live event graph',()=>{

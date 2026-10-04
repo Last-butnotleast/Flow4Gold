@@ -1,17 +1,17 @@
 # Asynchronous state tasks
 
-The immutable machine names tasks, for example `INVESTIGATING.tasks = ["diagnose"]`. Deployment table `task_bindings` maps `diagnose` to n8n workflow `wkjUfwKoHZDmTAXW`. No workflow IDs are added to the machine definition. This breakpoint supports one task per entered state.
+See [deployment checkpoints](generic-runtime.md) before publishing the local redesign.
+
+A machine names a task, such as `INVESTIGATING.tasks = ["diagnose"]`. `task_bindings` resolves `(machine, machineVersion, task)` to a workflow ID. Different machines and versions may reuse the same task name with different implementations. Definitions contain no n8n workflow IDs.
 
 ```text
-Core: replay → validate → append event → look up task binding → start task → finish
-Task: perform work → call Core with result event → finish
+Core: replay → validate → append → resolve binding → launch task → finish
+Task: validate business input → perform work → send result event → finish
 ```
 
-Both Execute Sub-workflow nodes use `waitForSubWorkflow: false`. Only newly accepted events dispatch work. Inspection, replay, duplicates, and rejected requests do not look up or start tasks.
+Both task launch and callback use `waitForSubWorkflow: false`. Only a newly accepted event can dispatch work. One task per entered state is supported; the initial state is passive.
 
-## Invocation
-
-The core derives a stable invocation from the event that entered the task-bearing state:
+## Invocation and callback
 
 ```json
 {
@@ -23,13 +23,11 @@ The core derives a stable invocation from the event that entered the task-bearin
   "state": "INVESTIGATING",
   "machine": "customer-refund",
   "machineVersion": 1,
-  "input": {}
+  "input": { "message": "Please check my payment" }
 }
 ```
 
-`input` is the triggering event's payload, not a rebuilt general-purpose case context. The dispatch node also carries workflow-binding metadata; task business logic only needs the contract above.
-
-Diagnosis validates the invocation, reads the recorded customer messages and replies, and calls Jev with the allowed investigation choices. Payment fields come from the `demo_orders` Data Table and are captured in the proposal event. For example, a recommendation calls the core with the following business fields (the current adapter additionally records decision/evidence metadata):
+`input` is the entering event's payload. Tasks can load recorded case events and their domain tables for additional context. A result callback has this envelope:
 
 ```json
 {
@@ -38,37 +36,17 @@ Diagnosis validates the invocation, reads the recorded customer messages and rep
   "taskInvocationId": "event-001:diagnose",
   "causationId": "event-001",
   "correlationId": "case-001",
-  "type": "REFUND_RECOMMENDED",
-  "payload": {
-    "amount": 25,
-    "currency": "EUR",
-    "paymentReference": "demo-payment-1042",
-    "reason": "Duplicate charge confirmed in sample payment records"
-  }
+  "type": "NEED_MORE_INFO",
+  "payload": { "question": "Which order?" }
 }
 ```
 
-The core accepts this callback only when its invocation matches the task expected from the current state-entry event. An old callback after state re-entry is rejected even when its event type would otherwise be legal. Result IDs are stable so the same accepted callback can be delivered again without another append or task launch. Invocation metadata is stored in its own event column, separate from the business payload; it is not authentication.
+Mark edges produced by a task with `"taskResult": true`. The core then requires the expected invocation ID, result event ID, and causation link for the current state-entry event. An old callback after state re-entry is rejected. Duplicate accepted callbacks remain no-ops. A supplied invocation ID is checked even on an unmarked edge.
 
-For version 1, the callback enters taskless `AWAITING_APPROVAL` and stops. For versions 2 and 3, that state dispatches `request_approval`, which posts a signed review link to Discord and waits for an explicit form response. See [the approval task](approval.md). `issue_refund` now resolves the exact approved proposal and creates a deterministic simulated receipt. `verify_refund` checks the stored receipt against that proposal before confirming the simulated refund. See [the completed example](end-to-end.md). Version 3 also dispatches `human_review` from `HUMAN_REVIEW`, with approve/reject/customer-question outcomes described in [human review](human-review.md).
+The core does not know refund amounts, proposal IDs, review messages, contest eligibility, or receipt structure. Tasks and domain-specific ingress adapters validate those facts. Identifiers are not secrets or authentication; arbitrary clients cannot be given unrestricted access to the core.
 
-## Result and failure semantics
+## Dispatch and failures
 
-The initial core result reports the state after the submitted event (`INVESTIGATING`) and `dispatch.status: "started"`. That means the subworkflow invocation returned without waiting; it does not mean diagnosis or its callback has completed. Use inspection to obtain the current state afterward.
+`dispatch.status: "started"` means the subworkflow was launched without waiting, not that it completed. Inspect the case for its later state. Missing or ambiguous bindings return `dispatch.status: "unavailable"` after the accepted event has been stored. The event is not rolled back.
 
-A missing or ambiguous binding returns an applied transition with `dispatch.status: "unavailable"` and a reason. The event is already stored. Subworkflow launch or execution failures are visible in n8n executions; no automatic recovery is implemented.
-
-Append and dispatch are separate operations. A crash after append but before dispatch can leave an unstarted task. Replaying or retrying the accepted event will not restart it. Stable result IDs prevent duplicate result events, not duplicate task side effects. Recovery and side-effect idempotency remain prerequisites for real payments.
-
-Continue to submit independent events sequentially. The asynchronous callback is submitted after its triggering event is appended, but this does not introduce protection against unrelated concurrent writes.
-
-## Earlier deterministic verification
-
-Case: `async-diagnose-check-68d3528f-1dce-4f23-a09e-12757ec9e675`.
-
-- Initial `RECEIVED`: sequence 1, `INVESTIGATING`, dispatch started.
-- Diagnosis execution `1699`: deterministic proposal, asynchronous callback.
-- `REFUND_RECOMMENDED`: sequence 2, `AWAITING_APPROVAL`, preserved correlation, causation, and task invocation IDs.
-- Inspection, original-event retry, and illegal `ACTION_COMPLETED`: no further event rows or diagnosis executions.
-
-Seventeen local tests passed. Final no-write live checks also passed against the latest deployed draft. Core Runtime, Diagnose Case, and the test harness were each API-confirmed inactive and unpublished after cleanup. The two demo events remain available for review.
+No automatic task recovery is implemented. A crash between append and dispatch can leave work unstarted; replay does not cause side effects. Stable callback IDs prevent duplicate result events, not duplicate external effects. Payments remain simulated.

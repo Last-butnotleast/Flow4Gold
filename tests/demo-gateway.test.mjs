@@ -5,13 +5,13 @@ import {customerPayload} from '../server/demo-server.mjs';
 const validate = new Function('$json', readFileSync('runtime/demo-gateway.js','utf8'));
 const intake={caseId:'demo-123',eventId:'customer-123',type:'RECEIVED',payload:{message:'Duplicate charge',orderReference:'1042'}};
 test('demo ingress accepts customer intake, reply and read-only inspect',()=>{
-  assert.deepEqual(validate({body:intake})[0].json,intake);
-  assert.equal(validate({body:{...intake,type:'CUSTOMER_REPLIED'}})[0].json.type,'CUSTOMER_REPLIED');
+  assert.deepEqual(validate({body:intake})[0].json,{...intake,machine:'customer-refund',machineVersion:1});
+  assert.deepEqual(validate({body:{...intake,type:'CUSTOMER_REPLIED'}})[0].json,{...intake,type:'CUSTOMER_REPLIED'});
   assert.deepEqual(validate({body:{caseId:'demo-123',operation:'inspect'}})[0].json,{caseId:'demo-123',operation:'inspect'});
 });
 test('demo ingress cannot forge domain task results, approvals or invocation metadata',()=>{
   for(const type of ['APPROVED','REJECTED','REFUND_RECOMMENDED','ACTION_COMPLETED','REFUND_CONFIRMED'])assert.throws(()=>validate({body:{...intake,type}}));
-  for(const key of ['taskInvocationId','causationId','machineVersion','state'])assert.throws(()=>validate({body:{...intake,[key]:'forged'}}));
+  for(const key of ['taskInvocationId','causationId','machine','machineVersion','state'])assert.throws(()=>validate({body:{...intake,[key]:'forged'}}));
   assert.throws(()=>validate({body:{...intake,payload:{...intake.payload,amount:5000}}}));
 });
 test('browser input limits reject arbitrary properties and oversized content',()=>{

@@ -27,6 +27,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
     name: 'Flow4Gold - Demo Gateway',
     active: false,
     isArchived: false,
+    projectId: '8d5DQtHZkgLco5Yr',
     settings: { executionOrder: 'v1' },
 })
 export class Flow4goldDemoGatewayWorkflow {
@@ -75,7 +76,8 @@ const payload = body.payload;
 if (!payload || typeof payload !== 'object' || Array.isArray(payload) || Object.keys(payload).some(key => !['message', 'orderReference'].includes(key))) throw new Error('Invalid customer payload.');
 if (typeof payload.message !== 'string' || !payload.message.trim() || payload.message.length > 4000) throw new Error('Message must contain 1–4000 characters.');
 if (payload.orderReference !== undefined && (typeof payload.orderReference !== 'string' || payload.orderReference.length > 80)) throw new Error('Invalid order reference.');
-return [{json: {caseId: body.caseId, eventId: body.eventId, type: body.type, payload: {message: payload.message.trim(), ...(payload.orderReference?.trim() ? {orderReference: payload.orderReference.trim()} : {})}}}];
+// Refund-specific adapter selects a definition; the generic core has no domain default.
+return [{json: {caseId: body.caseId, eventId: body.eventId, type: body.type, ...(body.type === 'RECEIVED' ? {machine: 'customer-refund', machineVersion: 1} : {}), payload: {message: payload.message.trim(), ...(payload.orderReference?.trim() ? {orderReference: payload.orderReference.trim()} : {})}}}];
 `,
     };
 

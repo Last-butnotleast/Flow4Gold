@@ -10,6 +10,12 @@ const ordersTableId = '1NakvVeVYx0CI2hU';
 const tableId = 'TjuB58skTvPRCwB3';
 const bindings = {core: 'frF2jemAeCrcFPDe', diagnose: 'wkjUfwKoHZDmTAXW', request_approval: 'cL04Sd1GfOlJk0Te', human_review: 'QqlNaOkKKdpSGjO8', issue_refund: 'QWAFL09ceL8nUa6y', verify_refund: '9LZC7MMcWWLI4FN9'};
 const root = new URL('../', import.meta.url);
+// Payment-support adapter stays pinned to its compatible refund task contract.
+export function paymentMachine(catalog) {
+  const machine = catalog.machines.find(item => item.machine === 'customer-refund' && item.version === 1)?.definition;
+  if (!machine) fail('The payment demo requires customer-refund version 1 in the machine catalog.');
+  return machine;
+}
 export function projectProposal(events) {
   const event = events.findLast(event => ['REFUND_RECOMMENDED', 'REVIEW_APPROVED'].includes(event.type));
   return event?.type === 'REVIEW_APPROVED' ? event.payload.proposal ?? null : event?.payload ?? null;
@@ -100,7 +106,7 @@ export function createDemoServer({host, apiKey, token, fetchImpl = fetch}) {
       if(req.method==='GET'&&path==='/api/config') {
         const stored=await catalog();
         const machines=stored.machines.map(item=>item.definition);
-        return send(200,{machine:stored.machines.find(item=>item.isDefault).definition,machines,sampleOrders:await orders(),taskLinks,workflowLinks:taskLinks,simulation:true});
+        return send(200,{machine:paymentMachine(stored),machines,sampleOrders:await orders(),taskLinks,workflowLinks:taskLinks,simulation:true});
       }
       if(req.method==='GET'&&path==='/api/machines')return send(200,await catalog());
       if(req.method==='POST'&&path==='/api/machines') {

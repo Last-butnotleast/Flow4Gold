@@ -38,7 +38,7 @@ export function conversationStatus(current: LiveCase | null): { title: string; h
     case 'AWAITING_APPROVAL': return { title: 'Waiting for team approval', hint: 'The support team is reviewing the proposed refund. This conversation will update after their decision.' };
     case 'EXECUTING': return { title: 'Processing refund', hint: 'The approved refund is being simulated.' };
     case 'VERIFYING': return { title: 'Confirming refund', hint: 'Checking the simulated payment receipt.' };
-    case 'HUMAN_REVIEW': return !current?.machine?.states.HUMAN_REVIEW?.tasks?.includes('human_review') ? { title: 'Needs team review', hint: 'This older case waits for manual review. No automated review task is attached to its machine version.' } : { title: 'Waiting for team review', hint: 'The support team will approve a refund, ask a follow-up question, or close the request. This conversation will update after their decision.' };
+    case 'HUMAN_REVIEW': return { title: 'Waiting for team review', hint: 'The support team will approve a refund, ask a follow-up question, or close the request. This conversation will update after their decision.' };
     case 'RECONCILING': return { title: 'Checking payment status', hint: 'The result needs review. We will not automatically issue another refund.' };
     case 'CLOSED': return { title: current?.outcome === 'REFUNDED' ? 'Refund confirmed' : 'Conversation closed', hint: current?.outcome === 'REFUNDED' ? 'Demo complete. No real money moved.' : 'This case is closed. Start a new conversation for another request.' };
     default: return { title: 'Payment support', hint: 'Tell us what happened with your payment.' };
