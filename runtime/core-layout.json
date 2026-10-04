@@ -1,0 +1,22 @@
+{
+  "positions": {
+    "Receive Event": [0, 112],
+    "Prepare Event": [224, 112],
+    "Read Machine Definitions": [448, 112],
+    "Load Machine Definitions": [672, 112],
+    "Find Event": [896, 112],
+    "Plan Transition": [1120, 112],
+    "Append Event?": [1344, 112],
+    "Append Event": [1568, 16],
+    "Has Task?": [2016, 16],
+    "After Append": [1792, 16],
+    "Find Task Binding": [2240, -80],
+    "Prepare Task Dispatch": [2464, -80],
+    "Binding Available?": [2688, -80],
+    "Run Task": [2912, -176],
+    "Dispatched Result": [3136, -176],
+    "Dispatch Unavailable": [2912, 16],
+    "Applied Result": [2240, 112],
+    "Existing Result": [1568, 208]
+  }
+}

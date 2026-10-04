@@ -59,6 +59,8 @@ npm run diagram -- machines/customer-refund.v1.json docs/customer-refund.mmd
 
 Builds bundle interpreter and task code, not machine JSON. Core and diagnosis read definitions through native Data Table nodes.
 
+The core canvas keeps its aligned positions in `runtime/core-layout.json`. After intentionally changing its layout in n8n, pull the workflow and run `npm run core:layout` before rebuilding. `npm run format:core` formats core sources and every generated Code node; `npm run format:core:check` verifies formatting and generated content. Use `npm run build` after shared-validator edits to refresh dependent task bundles. Review stage-note placement after a new alignment. With the pinned n8n-as-code 2.7 toolchain, use sticky-note sections: workflow-level Canvas Group metadata does not survive its TypeScript roundtrip.
+
 ## n8n workspace
 
 Use the pinned CLI with `npm run n8n -- ...`. Folder sync maps `workflows/flow4gold/` and its `tasks/` subfolders to n8n. Read [AGENTS.md](AGENTS.md) before workflow edits. Pull before editing a remote workflow; validate before pushing. On n8n 2.x, pushing an already published workflow may publish it: `--draft` preserves the existing production version.

@@ -13,9 +13,13 @@
     "test": "node --test tests/*.test.mjs",
     "validate": "node scripts/build-competition-gateway.mjs --check && node scripts/build-human-review.mjs --check && node scripts/build-core.mjs --check && node scripts/build-diagnosis.mjs --check && n8nac skills validate workflows/flow4gold/core-runtime.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/diagnose-case.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/request-approval.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/issue-refund.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/verify-refund.workflow.ts && n8nac skills validate workflows/flow4gold/demo-gateway.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/human-review.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/competition/register-submission.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/competition/contestant-response.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/competition/handle-organizer-action.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/competition/notify-participant.workflow.ts && n8nac skills validate workflows/flow4gold/competition-gateway.workflow.ts",
     "demo": "node scripts/start-demo.mjs",
-    "demo:api": "node server/demo-server.mjs"
+    "demo:api": "node server/demo-server.mjs",
+    "format:core": "prettier --write runtime/prepare-event.js runtime/load-machine-definitions.js runtime/plan-transition.js shared/machine-validation.mjs scripts/build-core.mjs runtime/core-layout.json && node scripts/build-core.mjs",
+    "format:core:check": "prettier --check runtime/prepare-event.js runtime/load-machine-definitions.js runtime/plan-transition.js shared/machine-validation.mjs scripts/build-core.mjs runtime/core-layout.json && node scripts/build-core.mjs --check",
+    "core:layout": "node scripts/build-core.mjs --capture-layout"
   },
   "devDependencies": {
-    "n8nac": "2.7.0"
+    "n8nac": "2.7.0",
+    "prettier": "3.9.9"
   }
 }

@@ -13,6 +13,7 @@
 - Within that workflow directory, put the core runtime in `flow4gold/` and task workflows in `flow4gold/tasks/`. Folder sync mirrors this layout in n8n.
 - Once a machine version has recorded events, keep its definition immutable; change the version for lifecycle changes. Replay reconstructs state and must never execute tasks.
 - Runtime definitions come from `machine_definitions`; local machine JSON files are seed/reference examples. Save new immutable versions through the editor/API, not by overwriting a recorded definition.
+- Preserve user canvas edits: pull the core, then explicitly run `npm run core:layout` to capture an intended alignment before rebuilding. Core positions live in `runtime/core-layout.json`; `npm run format:core:check` verifies readable Code nodes and generated content.
 - Keep credentials in environment variables or the local secret store, out of source control and tool output. Never print `.env` or secret-store contents.
 
 ## Workflow changes
