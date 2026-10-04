@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {parseMachine} from '../shared/machine-validation.mjs';
 import {plan,parcel,start,callback} from './helpers/runtime.mjs';
 const refund=JSON.parse(await readFile('machines/customer-refund.v1.json','utf8'));
-const submission=JSON.parse(await readFile('machines/flow4gold-submission.v1.json','utf8'));
+const submission=JSON.parse(await readFile('tests/fixtures/flow4gold-submission.v1.json','utf8'));
 
 test('refund and submission run interleaved in one event store with their own initial events',()=>{
  const definitions=[refund,submission];const rows=[];

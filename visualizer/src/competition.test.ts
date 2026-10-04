@@ -11,7 +11,7 @@ import {
   type CompetitionEntry,
   type EntryInput,
 } from './competition';
-import definition from '../../machines/flow4gold-submission.v1.json';
+import definition from '../../tests/fixtures/flow4gold-submission.v1.json';
 import { parseMachine } from './machine';
 const entry = (): CompetitionEntry => ({
   caseId: 'competition-entry',

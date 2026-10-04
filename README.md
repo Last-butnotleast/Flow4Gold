@@ -30,7 +30,7 @@ The core has no public webhook; trusted n8n adapters call it. Business validatio
 ## Demo machines
 
 - [Customer refund](machines/customer-refund.v1.json): real Jev diagnosis, Discord approval/review, simulated refund and verification. The local seed starts fresh at v1; historical compatibility versions are removed.
-- [Flow4Gold submission](machines/flow4gold-submission.v1.json): contestant/organizer lifecycle, starting with `SUBMISSION_RECEIVED`. This is the second runtime comparison model. The [competition gateway](docs/competition-gateway.md) calls the completed competition adapters and persists their events; email and other effects remain previews. A v2 comparison definition demonstrates a different initial transition.
+- [Flow4Gold submission](docs/competition-frontend.md): contestant/organizer lifecycle, starting with `SUBMISSION_RECEIVED`. This is the second runtime comparison model. The [competition gateway](docs/competition-gateway.md) calls the completed competition adapters and persists their events; email and other effects remain previews. A v2 comparison definition demonstrates a different initial transition.
 
 Other JSON files are graph examples. A valid graph does not supply its business adapters automatically. Once a definition has recorded events, save a new version rather than modify it.
 

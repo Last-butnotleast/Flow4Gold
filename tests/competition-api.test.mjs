@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import { createDemoServer } from '../server/demo-server.mjs';
 import { registrationRequest, actionRequest } from '../server/competition.mjs';
-const machine = JSON.parse(await readFile('machines/flow4gold-submission.v1.json', 'utf8'));
+const machine = JSON.parse(await readFile('tests/fixtures/flow4gold-submission.v1.json', 'utf8'));
 const submission = {
   contestantName: 'Taylor',
   email: 'taylor@example.invalid',

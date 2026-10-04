@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import definition from '../../machines/flow4gold-submission.v1.json';
+import definition from '../../tests/fixtures/flow4gold-submission.v1.json';
 import { parseMachine } from './machine';
 import type { CompetitionEntry } from './competition';
 import {
