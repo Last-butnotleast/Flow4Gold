@@ -1,0 +1,70 @@
+stateDiagram-v2
+    state "OPEN" as s0
+    state "EXTRACTING_RECEIPT" as s1
+    note right of s1: tasks#58; extract_return_receipt
+    state "ESTABLISHING_EXPECTATION" as s2
+    note right of s2: tasks#58; establish_expected_refund
+    state "WAITING_FOR_DETAILS" as s3
+    state "TRACKING" as s4
+    state "CHECKING_DELIVERY" as s5
+    note right of s5: tasks#58; check_return_delivery
+    state "CHECKING_REFUND" as s6
+    note right of s6: tasks#58; reconcile_received_refund
+    state "ASSESSING_REFUND_UPDATE" as s7
+    note right of s7: tasks#58; assess_refund_messages
+    state "PREPARING_REMINDER" as s8
+    note right of s8: tasks#58; prepare_refund_reminder
+    state "AWAITING_REMINDER_APPROVAL" as s9
+    note right of s9: tasks#58; request_reminder_approval
+    state "RECHECKING_REMINDER" as s10
+    note right of s10: tasks#58; recheck_approved_reminder
+    state "SENDING_REMINDER" as s11
+    note right of s11: tasks#58; send_approved_reminder
+    state "RECONCILING_REMINDER" as s12
+    state "MANUAL_REVIEW" as s13
+    note right of s13: tasks#58; review_refund_tracking
+    state "CLOSED" as s14
+
+    [*] --> s0
+    s0 --> s1: RECEIVED
+    s1 --> s2: RECEIPT_EXTRACTED
+    s1 --> s3: RECEIPT_UNREADABLE
+    s1 --> s13: TASK_FAILED
+    s2 --> s13: TASK_FAILED
+    s2 --> s4: decide#58; EXPECTATION_ESTABLISHED
+    s2 --> s3: decide#58; DETAILS_REQUIRED
+    s3 --> s1: DETAILS_PROVIDED
+    s4 --> s5: DELIVERY_CHECK_DUE
+    s4 --> s6: REFUND_CHECK_DUE
+    s4 --> s6: REFUND_MESSAGE_RECEIVED
+    s5 --> s4: DELIVERY_CONFIRMED
+    s5 --> s4: DELIVERY_PENDING
+    s5 --> s13: DELIVERY_EXCEPTION
+    s5 --> s13: TASK_FAILED
+    s6 --> s14: REFUND_CONFIRMED #47; outcome#58; REFUNDED
+    s6 --> s7: REFUND_OUTSTANDING
+    s6 --> s13: TASK_FAILED
+    s7 --> s13: TASK_FAILED
+    s7 --> s4: decide#58; REFUND_DATE_ANNOUNCED
+    s7 --> s4: decide#58; REFUND_NOT_YET_DUE
+    s7 --> s8: decide#58; REFUND_OVERDUE
+    s7 --> s4: decide#58; FOLLOW_UP_NOT_YET_DUE
+    s7 --> s13: decide#58; UPDATE_UNCLEAR
+    s8 --> s9: REMINDER_PREPARED
+    s8 --> s13: CONTACT_UNRESOLVED
+    s8 --> s13: TASK_FAILED
+    s9 --> s10: REMINDER_APPROVED
+    s9 --> s4: REMINDER_DECLINED
+    s9 --> s6: REFUND_MESSAGE_RECEIVED
+    s9 --> s6: REFUND_CHECK_DUE
+    s9 --> s13: TASK_FAILED
+    s10 --> s11: REMINDER_STILL_REQUIRED
+    s10 --> s6: REMINDER_SUPERSEDED
+    s10 --> s13: TASK_FAILED
+    s11 --> s4: REMINDER_SENT
+    s11 --> s12: TASK_FAILED
+    s12 --> s4: REMINDER_SEND_CONFIRMED
+    s12 --> s8: REMINDER_NOT_SENT
+    s13 --> s1: RECEIPT_CORRECTED
+    s13 --> s4: TRACKING_CORRECTED
+    s14 --> [*]

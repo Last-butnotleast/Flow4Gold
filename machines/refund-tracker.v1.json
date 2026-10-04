@@ -1,0 +1,142 @@
+{
+  "machine": "refund-tracker",
+  "version": 1,
+  "initial": "OPEN",
+  "states": {
+    "OPEN": {
+      "on": {
+        "RECEIVED": { "target": "EXTRACTING_RECEIPT" }
+      }
+    },
+    "EXTRACTING_RECEIPT": {
+      "tasks": ["extract_return_receipt"],
+      "on": {
+        "RECEIPT_EXTRACTED": { "target": "ESTABLISHING_EXPECTATION" },
+        "RECEIPT_UNREADABLE": { "target": "WAITING_FOR_DETAILS" },
+        "TASK_FAILED": { "target": "MANUAL_REVIEW" }
+      }
+    },
+    "ESTABLISHING_EXPECTATION": {
+      "tasks": ["establish_expected_refund"],
+      "decide": {
+        "EXPECTATION_ESTABLISHED": {
+          "target": "TRACKING",
+          "description": "Receipt, purchase messages and payment evidence identify the return and its expected amount, currency and dates; the tracking record has been saved."
+        },
+        "DETAILS_REQUIRED": {
+          "target": "WAITING_FOR_DETAILS",
+          "description": "The return cannot be matched confidently or required refund details are missing."
+        }
+      },
+      "on": {
+        "TASK_FAILED": { "target": "MANUAL_REVIEW" }
+      }
+    },
+    "WAITING_FOR_DETAILS": {
+      "on": {
+        "DETAILS_PROVIDED": { "target": "EXTRACTING_RECEIPT" }
+      }
+    },
+    "TRACKING": {
+      "on": {
+        "DELIVERY_CHECK_DUE": { "target": "CHECKING_DELIVERY" },
+        "REFUND_CHECK_DUE": { "target": "CHECKING_REFUND" },
+        "REFUND_MESSAGE_RECEIVED": { "target": "CHECKING_REFUND" }
+      }
+    },
+    "CHECKING_DELIVERY": {
+      "tasks": ["check_return_delivery"],
+      "on": {
+        "DELIVERY_CONFIRMED": { "target": "TRACKING" },
+        "DELIVERY_PENDING": { "target": "TRACKING" },
+        "DELIVERY_EXCEPTION": { "target": "MANUAL_REVIEW" },
+        "TASK_FAILED": { "target": "MANUAL_REVIEW" }
+      }
+    },
+    "CHECKING_REFUND": {
+      "tasks": ["reconcile_received_refund"],
+      "on": {
+        "REFUND_CONFIRMED": { "target": "CLOSED", "outcome": "REFUNDED" },
+        "REFUND_OUTSTANDING": { "target": "ASSESSING_REFUND_UPDATE" },
+        "TASK_FAILED": { "target": "MANUAL_REVIEW" }
+      }
+    },
+    "ASSESSING_REFUND_UPDATE": {
+      "tasks": ["assess_refund_messages"],
+      "decide": {
+        "REFUND_DATE_ANNOUNCED": {
+          "target": "TRACKING",
+          "description": "A relevant merchant message provides a validated future refund date; persist the revised date and schedule before returning to tracking."
+        },
+        "REFUND_NOT_YET_DUE": {
+          "target": "TRACKING",
+          "description": "The current expected refund date has not passed; continue tracking the outstanding balance."
+        },
+        "REFUND_OVERDUE": {
+          "target": "PREPARING_REMINDER",
+          "description": "An outstanding balance remains after the expected refund date, with no applicable future date announced and no active reminder cooldown."
+        },
+        "FOLLOW_UP_NOT_YET_DUE": {
+          "target": "TRACKING",
+          "description": "A reminder was already sent or declined and its configured follow-up date has not arrived."
+        },
+        "UPDATE_UNCLEAR": {
+          "target": "MANUAL_REVIEW",
+          "description": "Conflicting messages, amounts or dates require human clarification."
+        }
+      },
+      "on": {
+        "TASK_FAILED": { "target": "MANUAL_REVIEW" }
+      }
+    },
+    "PREPARING_REMINDER": {
+      "tasks": ["prepare_refund_reminder"],
+      "on": {
+        "REMINDER_PREPARED": { "target": "AWAITING_REMINDER_APPROVAL" },
+        "CONTACT_UNRESOLVED": { "target": "MANUAL_REVIEW" },
+        "TASK_FAILED": { "target": "MANUAL_REVIEW" }
+      }
+    },
+    "AWAITING_REMINDER_APPROVAL": {
+      "tasks": ["request_reminder_approval"],
+      "on": {
+        "REMINDER_APPROVED": { "target": "RECHECKING_REMINDER" },
+        "REMINDER_DECLINED": { "target": "TRACKING" },
+        "REFUND_MESSAGE_RECEIVED": { "target": "CHECKING_REFUND" },
+        "REFUND_CHECK_DUE": { "target": "CHECKING_REFUND" },
+        "TASK_FAILED": { "target": "MANUAL_REVIEW" }
+      }
+    },
+    "RECHECKING_REMINDER": {
+      "tasks": ["recheck_approved_reminder"],
+      "on": {
+        "REMINDER_STILL_REQUIRED": { "target": "SENDING_REMINDER" },
+        "REMINDER_SUPERSEDED": { "target": "CHECKING_REFUND" },
+        "TASK_FAILED": { "target": "MANUAL_REVIEW" }
+      }
+    },
+    "SENDING_REMINDER": {
+      "tasks": ["send_approved_reminder"],
+      "on": {
+        "REMINDER_SENT": { "target": "TRACKING" },
+        "TASK_FAILED": { "target": "RECONCILING_REMINDER" }
+      }
+    },
+    "RECONCILING_REMINDER": {
+      "on": {
+        "REMINDER_SEND_CONFIRMED": { "target": "TRACKING" },
+        "REMINDER_NOT_SENT": { "target": "PREPARING_REMINDER" }
+      }
+    },
+    "MANUAL_REVIEW": {
+      "tasks": ["review_refund_tracking"],
+      "on": {
+        "RECEIPT_CORRECTED": { "target": "EXTRACTING_RECEIPT" },
+        "TRACKING_CORRECTED": { "target": "TRACKING" }
+      }
+    },
+    "CLOSED": {
+      "final": true
+    }
+  }
+}

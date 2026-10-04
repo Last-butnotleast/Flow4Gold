@@ -1,0 +1,21 @@
+{
+  "name": "flow4gold",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Domain state machines implemented with n8n workflows",
+  "scripts": {
+    "n8n": "n8nac",
+    "build": "node scripts/build-core.mjs && node scripts/build-diagnosis.mjs && node scripts/build-human-review.mjs",
+    "diagram": "node scripts/machine-to-mermaid.mjs",
+    "visualizer": "npm --prefix visualizer run dev",
+    "visualizer:build": "npm --prefix visualizer run build",
+    "visualizer:test": "npm --prefix visualizer run test",
+    "test": "node --test tests/*.test.mjs",
+    "validate": "node scripts/build-human-review.mjs --check && node scripts/build-core.mjs --check && node scripts/build-diagnosis.mjs --check && n8nac skills validate workflows/flow4gold/core-runtime.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/diagnose-case.workflow.ts && n8nac skills validate workflows/flow4gold/tests/persistence-check.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/request-approval.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/issue-refund.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/verify-refund.workflow.ts && n8nac skills validate workflows/flow4gold/tests/finish-approved-case.workflow.ts && n8nac skills validate workflows/flow4gold/demo-gateway.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/human-review.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/competition/register-submission.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/competition/contestant-response.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/competition/handle-organizer-action.workflow.ts && n8nac skills validate workflows/flow4gold/tasks/competition/notify-participant.workflow.ts",
+    "demo": "node scripts/start-demo.mjs",
+    "demo:api": "node server/demo-server.mjs"
+  },
+  "devDependencies": {
+    "n8nac": "2.7.0"
+  }
+}

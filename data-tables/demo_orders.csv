@@ -1,0 +1,3 @@
+orderReference,itemName,amount,currency,paymentReference,duplicateCharge
+1042,Everyday travel mug,25,EUR,demo-payment-1042,true
+1043,Canvas weekend bag,40,EUR,demo-payment-1043,false

@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+!.env.example
+.n8nac/
+*.log
+workflows/.n8n-state.json
+workflows/.n8n-sync-events.jsonl
+workflows/.schema-overlay*.json

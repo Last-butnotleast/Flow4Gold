@@ -1,0 +1,31 @@
+{
+  "version": 4,
+  "activeEnvironmentId": "flow4gold-2",
+  "environmentTargets": [
+    {
+      "id": "flow4gold",
+      "name": "Flow4Gold",
+      "kind": "external-instance",
+      "url": "https://n8n.last-butnotleast.com"
+    }
+  ],
+  "environments": [
+    {
+      "id": "flow4gold-2",
+      "name": "Flow4Gold",
+      "syncSlug": "flow4gold",
+      "environmentTargetId": "flow4gold",
+      "projectId": "personal",
+      "projectName": "Personal",
+      "workflowsPath": "workflows",
+      "folderSync": true,
+      "nativeMcp": {
+        "enabled": true,
+        "url": "https://n8n.last-butnotleast.com/mcp-server/http",
+        "mode": "assist",
+        "level": 1,
+        "requireSyncBack": true
+      }
+    }
+  ]
+}
