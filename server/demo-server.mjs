@@ -4,6 +4,7 @@ import { loadEnvFile } from 'node:process';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import {parseMachine, canonicalJson, parseMachineCatalog} from '../shared/machine-validation.mjs';
+import {createCompetitionService} from './competition.mjs';
 
 const machinesTableId = 'Lm8JZL9uCNqj14vE';
 const ordersTableId = '1NakvVeVYx0CI2hU';
@@ -96,6 +97,7 @@ export function createDemoServer({host, apiKey, token, fetchImpl = fetch}) {
     let raw='';for await(const chunk of req){raw+=chunk;if(Buffer.byteLength(raw)>limit)fail('Request too large.',413);}
     try{return JSON.parse(raw);}catch{fail('Invalid JSON.',400);}
   }
+  const competition=createCompetitionService({host,apiKey,token,fetchImpl,catalog,inspect:gateway});
   return createServer(async(req,res)=>{
     const send=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(data));};
     try {
@@ -103,6 +105,11 @@ export function createDemoServer({host, apiKey, token, fetchImpl = fetch}) {
       if(!['127.0.0.1:5173','localhost:5173','127.0.0.1:5174','localhost:5174'].includes(req.headers.host)) return send(403,{error:'Host not allowed.'});
       if(req.headers.origin&&!['http://127.0.0.1:5173','http://localhost:5173','http://127.0.0.1:5174','http://localhost:5174'].includes(req.headers.origin)) return send(403,{error:'Origin not allowed.'});
       const path=new URL(req.url,'http://localhost').pathname;
+      if(req.method==='GET'&&path==='/api/competition/entries')return send(200,{entries:await competition.list()});
+      if(req.method==='POST'&&path==='/api/competition/entries')return send(201,await competition.register(await readBody(req,32768)));
+      const competitionMatch=path.match(/^\/api\/competition\/entries\/(competition-[a-f0-9]{32})(\/actions)?$/);
+      if(req.method==='GET'&&competitionMatch&&!competitionMatch[2])return send(200,{entry:await competition.get(competitionMatch[1])});
+      if(req.method==='POST'&&competitionMatch?.[2])return send(200,await competition.act(competitionMatch[1],await readBody(req,32768)));
       if(req.method==='GET'&&path==='/api/config') {
         const stored=await catalog();
         const machines=stored.machines.map(item=>item.definition);
@@ -167,7 +174,7 @@ export function createDemoServer({host, apiKey, token, fetchImpl = fetch}) {
         return send(201,{caseId,result});
       }
       send(404,{error:'Unknown route.'});
-    }catch(error){send(error.status??500,{error:error.status?error.message:'Demo service could not complete the request. Check local configuration and n8n.'});}
+    }catch(error){send(error.status??500,{error:error.status?error.message:'Demo service could not complete the request. Check local configuration and n8n.',...(error.status?error.details??{}:{})});}
   });
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){

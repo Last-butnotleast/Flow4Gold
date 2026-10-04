@@ -2,7 +2,7 @@
 
 ## Phase 1 — local contract and executable tests
 
-The generic runtime is now deployed to n8n with fresh application tables. Phase 1 established the local contract; phase 2 completed the coordinated reset and live verification on 4 October 2026. The visualizer is being developed separately.
+The generic runtime is now deployed to n8n with fresh application tables. Phase 1 established the local contract; phase 2 completed the coordinated reset and live verification on 4 October 2026. The competition visualizer is now connected through the local API and authenticated competition gateway.
 
 The baseline source snapshot is Git tag `baseline-demo` (commit `5d2d9fa`). This is a source backup, not a backup of remote executions or Data Table rows. Parallel competition task development shares the current branch; runtime commits must explicitly stage only their owned files.
 
@@ -36,9 +36,11 @@ The competition gateway calls the existing business adapters and sends their pro
 
 Seven live checks passed: registration, identical retry without writes, contestant publication linking, illegal-event rejection without writes, organizer closure, simultaneous pinned versions, and real asynchronous refund diagnosis. The three final fixtures share the same event table; their details are recorded in [the live proof](generic-runtime-proof.json). Refund stopped at WAITING_CUSTOMER after Jev requested information; no human decision was submitted and no payment moved. Abandoned test fixtures were removed.
 
-## Phase 3 — demo selection and inspection
+## Phase 3 — connected competition frontend
 
-Add machine-aware case creation and inspection to the frontend while preserving purpose-built customer and contestant interactions. Saving a graph is separate from making its adapters available. Packaging into one creator-portal workflow remains a separate submission step.
+The contestant and organizer screens now load entries from n8n, register new entries and submit actions through the same generic runtime. Browser seeds, fake PINs and local state transitions are removed. The live browser check covered registration, publication linking, a question/reply loop, invitation and acceptance, check-in, winner decision and prize acceptance; reload preserved the recorded state. The temporary verification entry was removed afterward. See [frontend contract](competition-frontend.md).
+
+Saving a graph remains separate from making its business adapters available. Packaging into one creator-portal workflow is the next submission step; external email delivery is still not connected.
 
 ## Checks
 

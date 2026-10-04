@@ -1,6 +1,6 @@
 # Flow4Gold frontend
 
-Three screens share one app: **Demo workspace**, **Sample orders**, and **Machine explorer**. This local phase-1 frontend targets the fresh refund v1 example. Remote deployment/reset is tracked in [generic runtime status](../docs/generic-runtime.md).
+Five screens share one app: **Demo workspace**, **Sample orders**, **Machine explorer**, **Contestant**, and **Admin**. This local phase-1 frontend targets the fresh refund v1 example. Remote deployment/reset is tracked in [generic runtime status](../docs/generic-runtime.md).
 
 From the repository root:
 
@@ -39,13 +39,27 @@ The saved-definition catalog comes from n8n. **Next version** proposes a fresh i
 
 The catalog default is only an editor selection preference. The generic runtime requires explicit machine/version for new cases; the payment gateway chooses its compatible refund v1 contract. Explorer selection never changes a running case or its pinned graph.
 
-Navigation uses `?view=demo|orders|explorer`; `?mode=live&case=...` links remain supported.
+Navigation uses `?view=demo|orders|explorer|contestant|admin`; `?mode=live&case=...` links remain supported.
+
+## Competition workbench
+
+Open **Contestant** (`?view=contestant`) or **Admin** (`?view=admin`). Both views read saved entries from `/api/competition/entries`; registration and actions pass through the local server, n8n competition adapters, and the generic runtime. There are no browser-seeded entries, local transition engine, or generated PINs. The visible entry reference is the persisted case ID. Reload reconstructs the same entries from accepted events.
+
+The contestant selector is a workbench view, not sign-in. Registration requires explicit template, ticket, privacy, and recording confirmations. A published workflow can be linked during registration or later using its numeric ID and a manual publication check. These are user statements; no automated ticket or publication verification is claimed. The contestant dashboard groups entries by email and opens the relevant next-step form.
+
+The admin dashboard retains its review queue and resizable actions/graph layout. Graphs use each entry’s server-supplied pinned machine. Organizer actions require a human reason, plus invitation details, attendance evidence, or an explicitly checked prize deadline where relevant. The server owns transition acceptance, finalist capacity, and winner uniqueness; the client never advances state optimistically. Recorded decisions do not imply an email or prize payment was sent.
+
+Failed submissions keep their drafts and reuse the same request UUID when retried without changing the payload. The client refreshes accepted history even after errors that may have partially persisted. List polling runs only while a competition screen and the document are visible, without overlapping reads or mutations. Loading errors and empty lists are shown directly instead of falling back to samples.
+
+In admin entry detail, drag the divider to adjust the actions/graph ratio. With the separator focused, use Left/Right (Shift for larger steps), Home or End. The ratio is saved in browser storage. On narrow screens the panels stack. Clicking a graph state inspects its definition and never changes the persisted entry state.
 
 ## Implementation
 
 React, TypeScript, Vite, React Flow, Lucide and ELK. Dependencies are pinned. Google Fonts have system fallbacks.
 
 - `src/App.tsx`: screens, current case, browser recent cases, order data and drafts.
+- `src/CompetitionWorkspace.tsx`, `competition.ts`, and `competition.css`: contestant/admin views and the HTTP client for persisted competition cases.
+- `src/components/ResizableSplit.tsx` and `.css`: responsive, accessible column resizing.
 - `src/MachineExplorer.tsx` and `machineEditor.ts`: editable source, validation, catalog/save flow and last-valid preview.
 - `src/machine.ts`: typed wrapper around shared graph validation.
 - `src/graph.ts`: state/event mapping and ELK routes.

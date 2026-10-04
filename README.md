@@ -2,7 +2,7 @@
 
 Domain state machines running in n8n: the machine owns the process, tasks perform business work, and AI makes bounded decisions. See [the project brief](PROJECT_BRIEF.md).
 
-**Current checkpoint:** the generic runtime is deployed with fresh tables. Live checks prove refund and Flow4Gold submission cases, including two submission versions, in one event table. [Phase plan and evidence](docs/generic-runtime.md). Visualizer work continues separately.
+**Current checkpoint:** the generic runtime is deployed with fresh tables. Live checks prove refund and Flow4Gold submission cases, including two submission versions, in one event table. [Phase plan and evidence](docs/generic-runtime.md). The competition frontend now uses the live runtime too.
 
 ## Runtime
 
@@ -30,7 +30,7 @@ The core has no public webhook; trusted n8n adapters call it. Business validatio
 ## Demo machines
 
 - [Customer refund](machines/customer-refund.v1.json): real Jev diagnosis, Discord approval/review, simulated refund and verification. The local seed starts fresh at v1; historical compatibility versions are removed.
-- [Flow4Gold submission](machines/flow4gold-submission.v1.json): contestant/organizer lifecycle, starting with `SUBMISSION_RECEIVED`. This is the second runtime comparison model. The [private competition gateway](docs/competition-gateway.md) calls the completed competition adapters and persists their events; email and other effects remain previews. A v2 comparison definition demonstrates a different initial transition.
+- [Flow4Gold submission](machines/flow4gold-submission.v1.json): contestant/organizer lifecycle, starting with `SUBMISSION_RECEIVED`. This is the second runtime comparison model. The [competition gateway](docs/competition-gateway.md) calls the completed competition adapters and persists their events; email and other effects remain previews. A v2 comparison definition demonstrates a different initial transition.
 
 Other JSON files are graph examples. A valid graph does not supply its business adapters automatically. Once a definition has recorded events, save a new version rather than modify it.
 
@@ -42,7 +42,7 @@ npm ci --prefix visualizer
 npm run demo
 ```
 
-Open http://localhost:5173/. The three screens are **Demo workspace**, **Sample orders**, and **Machine explorer**. The explorer imports/edits JSON with live validation and saves immutable definitions to n8n. Saving a definition does not activate tasks or change existing cases. The payment chat remains a refund-specific interface; generic case selection is a later checkpoint.
+Open http://localhost:5173/. The workspace includes payment support, sample orders, the machine editor, and separate competition contestant/organizer views. The explorer imports/edits JSON with live validation and saves immutable definitions to n8n. Saving a definition does not activate tasks or change existing cases. The payment and competition views use domain-specific forms backed by the same core. Competition registration and actions persist through n8n; there are no seeded browser entries or local transition engine. See [competition frontend](docs/competition-frontend.md).
 
 If Vite is already running, use `npm run demo:api` for the bridge only. Credentials stay in the local environment, never in the browser. See [live demo](docs/live-demo.md), [editor](docs/machine-editor.md), and [frontend guide](visualizer/README.md).
 

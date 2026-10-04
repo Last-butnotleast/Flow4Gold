@@ -1,8 +1,13 @@
 import {readFile,writeFile} from 'node:fs/promises';
 import {isDeepStrictEqual} from 'node:util';
-import {TypeScriptParser,WorkflowBuilder} from '@n8n-as-code/transformer';
+import {TypeScriptParser,WorkflowBuilder,JsonToAstParser,AstToTypeScriptGenerator} from '@n8n-as-code/transformer';
 export const workflowPath='workflows/flow4gold/competition-gateway.workflow.ts';
 export const gatewayCode={
+webhook:`const items=$input.all();
+if(items.length!==1)throw new Error('Submit one competition request.');
+const body=items[0].json.body;
+if(!body||typeof body!=='object'||Array.isArray(body))throw new Error('Competition webhook requires a JSON object body.');
+return [{json:body}];`,
 prepare:`const items=$input.all();
 if(items.length!==1)throw new Error('Submit one competition request.');
 const envelope=items[0].json;
@@ -54,6 +59,8 @@ export async function buildSource(){
  const link=(from,to,port=0)=>links.push(`    this.${from}.out(${port}).to(this.${to}.in(0));`);
  const call=(property,name,x,workflowId)=>node(property,name,'executeWorkflow',1.3,[x,0],{source:'database',workflowId:{__rl:true,value:workflowId,mode:'id'},mode:'each',options:{waitForSubWorkflow:true}},property==='RunAdapter'?{}:{onError:'continueRegularOutput'});
  node('ReceiveRequest','Trusted Internal Request','executeWorkflowTrigger',1.2,[0,0],{inputSource:'passthrough'});
+ node('CompetitionWebhook','Competition Server Webhook','webhook',2.1,[-220,220],{httpMethod:'POST',path:'flow4gold-competition',authentication:'headerAuth',responseMode:'lastNode',responseData:'firstEntryJson',options:{}},{webhookId:'flow4gold-competition-gateway',credentials:{httpHeaderAuth:{id:'IY5r9QTXQxCFlFge',name:'Flow4Gold Demo Gateway'}}});
+ code('ExtractWebhookBody','Extract Webhook Body',0,220,gatewayCode.webhook);
  code('PrepareAdapter','Prepare Adapter',220,0,gatewayCode.prepare);
  code('AdapterInput','Adapter Input',440,0,gatewayCode.input);
  call('RunAdapter','Run Preview Adapter',660,"={{ $('Prepare Adapter').first().json.workflowId }}");
@@ -66,12 +73,12 @@ export async function buildSource(){
  call('ApplySecond','Apply Second Event',2200,'frF2jemAeCrcFPDe');
  code('RecordSecond','Record Second Result',2420,0,gatewayCode.secondResult);
  code('BatchResult','Batch Result',2640,160,gatewayCode.finish);
- node('Scope','Integration Boundary','stickyNote',1,[220,-350],{content:'## Private competition gateway\nTrusted Execute Workflow callers only. actor.verified is an assertion, not authentication. Fixed adapter mapping; forced preview mode.\nPersist one event at a time through the generic core. Register emits two; stop on first failure. Partial results remain visible; retries keep original IDs. No batch transaction.\nEmail, PIN issuance and capacity reservations remain unimplemented preview effects. No notification workflow is invoked.',width:1040,height:230});
- for(const [from,to] of [['ReceiveRequest','PrepareAdapter'],['PrepareAdapter','AdapterInput'],['AdapterInput','RunAdapter'],['RunAdapter','ValidateBatch'],['ValidateBatch','FirstEvent'],['FirstEvent','ApplyFirst'],['ApplyFirst','RecordFirst'],['RecordFirst','ContinueBatch'],['ContinueBatch','SecondEvent'],['SecondEvent','ApplySecond'],['ApplySecond','RecordSecond'],['RecordSecond','BatchResult']])link(from,to);
+ node('Scope','Integration Boundary','stickyNote',1,[220,-350],{content:'## Trusted competition gateway\nInternal Execute Workflow callers or the authenticated local demo server webhook. The shared header credential stays on the server. The local server asserts actor identity; actor.verified is not browser authentication. Both entrypoints use the same fixed adapter mapping and forced preview mode.\nPersist one event at a time through the generic core. Register emits two; stop on first failure. Partial results remain visible; retries keep original IDs. No batch transaction.\nEmail, PIN issuance and capacity reservations remain unimplemented preview effects. No notification workflow is invoked.',width:1120,height:260});
+ for(const [from,to] of [['ReceiveRequest','PrepareAdapter'],['CompetitionWebhook','ExtractWebhookBody'],['ExtractWebhookBody','PrepareAdapter'],['PrepareAdapter','AdapterInput'],['AdapterInput','RunAdapter'],['RunAdapter','ValidateBatch'],['ValidateBatch','FirstEvent'],['FirstEvent','ApplyFirst'],['ApplyFirst','RecordFirst'],['RecordFirst','ContinueBatch'],['ContinueBatch','SecondEvent'],['SecondEvent','ApplySecond'],['ApplySecond','RecordSecond'],['RecordSecond','BatchResult']])link(from,to);
  link('ContinueBatch','BatchResult',1);
  // Preserve an ID assigned by the CLI after the initial create/push.
  let id;try{const current=await new TypeScriptParser().parseFile(workflowPath);id=new WorkflowBuilder().build(current).id;}catch{}
- return `// <workflow-map>\n// TrustedInternalRequest -> PrepareAdapter -> AdapterInput -> RunPreviewAdapter -> ValidateEventBatch\n// FirstEvent -> ApplyFirstEvent -> RecordFirstResult -> ContinueBatch?\n// true: SecondEvent -> ApplySecondEvent -> RecordSecondResult -> BatchResult\n// false: BatchResult (completed single result, rejection, or uncertain failure)\n// </workflow-map>\n// GENERATED by scripts/build-competition-gateway.mjs\nimport {workflow,node,links} from '@n8n-as-code/transformer';\n@workflow(${JSON.stringify({...id?{id}:{},name:'Flow4Gold - Competition Gateway',active:false,settings:{executionOrder:'v1'}},null,2)})\nexport class CompetitionGatewayWorkflow {\n${nodes.join('\n\n')}\n@links()\ndefineRouting(){\n${links.join('\n')}\n}\n}\n`;
+ return `// <workflow-map>\n// CompetitionServerWebhook (header auth) -> ExtractWebhookBody -> PrepareAdapter\n// TrustedInternalRequest -> PrepareAdapter -> AdapterInput -> RunPreviewAdapter -> ValidateEventBatch\n// FirstEvent -> ApplyFirstEvent -> RecordFirstResult -> ContinueBatch?\n// true: SecondEvent -> ApplySecondEvent -> RecordSecondResult -> BatchResult\n// false: BatchResult (completed single result, rejection, or uncertain failure)\n// </workflow-map>\n// GENERATED by scripts/build-competition-gateway.mjs\nimport {workflow,node,links} from '@n8n-as-code/transformer';\n@workflow(${JSON.stringify({...id?{id}:{},name:'Flow4Gold - Competition Gateway',active:false,settings:{executionOrder:'v1'}},null,2)})\nexport class CompetitionGatewayWorkflow {\n${nodes.join('\n\n')}\n@links()\ndefineRouting(){\n${links.join('\n')}\n}\n}\n`;
 }
 if(process.argv[1]?.endsWith('/build-competition-gateway.mjs')){
  const source=await buildSource();
@@ -80,5 +87,10 @@ if(process.argv[1]?.endsWith('/build-competition-gateway.mjs')){
   const expected=builder.build(await parser.parseCode(source)),actual=builder.build(await parser.parseFile(workflowPath));
   for(const key of ['name','active','nodes','connections'])if(!isDeepStrictEqual(actual[key],expected[key]))throw new Error(`Competition gateway differs (${key}). Rebuild before pushing.`);
   console.log('Competition gateway matches source.');
- }else{await writeFile(workflowPath,source);console.log(`Built ${workflowPath}`);}
+ }else{
+  // Keep the same readable TypeScript and multiline Code-node strings as a CLI pull.
+  const workflow=new WorkflowBuilder().build(await new TypeScriptParser().parseCode(source));
+  const formatted=await new AstToTypeScriptGenerator().generate(new JsonToAstParser().parse(workflow));
+  await writeFile(workflowPath,formatted);console.log(`Built ${workflowPath}`);
+ }
 }

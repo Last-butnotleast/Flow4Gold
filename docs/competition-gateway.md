@@ -1,8 +1,10 @@
 # Competition gateway
 
-The private [Competition Gateway](https://n8n.last-butnotleast.com/workflow/DH0auiC9UkXNBfRz) connects the existing competition adapters to [Core Runtime](https://n8n.last-butnotleast.com/workflow/frF2jemAeCrcFPDe). Both are deployed. The three event-producing competition adapters are published because this n8n instance requires active subworkflows. The notification renderer remains a separate preview workflow and is not called by this gateway.
+The [Competition Gateway](https://n8n.last-butnotleast.com/workflow/DH0auiC9UkXNBfRz) connects the existing competition adapters to [Core Runtime](https://n8n.last-butnotleast.com/workflow/frF2jemAeCrcFPDe). Both are deployed. The three event-producing competition adapters are published because this n8n instance requires active subworkflows. The notification renderer remains a separate preview workflow and is not called by this gateway.
 
-Call with an Execute Sub-workflow node and wait for its result:
+The local frontend bridge calls `POST /webhook/flow4gold-competition` using the server-held header credential. Trusted n8n workflows can still use Execute Sub-workflow and wait for the same result. Both entry points share the same validation.
+
+Request envelope:
 
 ```json
 {
@@ -45,7 +47,7 @@ Registration produces two events; other actions produce one. Each core call fini
 
 Result fields include `status`, `persisted`, `partiallyPersisted`, `appliedCount`, `duplicateCount`, `events`, `results`, and `unattemptedEventIds`. Reuse the same request ID and content for a retry: accepted events return `duplicate`, not another append. No batch transaction is provided.
 
-Only trusted internal callers may assert actor identity or provide a case snapshot. `actor.verified` is not authentication. Browser-facing identity, evidence persistence, PIN issuance, competition-wide finalist/winner reservations and email delivery are not implemented here. Effects are returned as previews and `notification.delivered` is false. Independent organizer events omit `causationId`; a request ID is not a recorded event ID.
+Only trusted internal callers may assert actor identity or provide a case snapshot. `actor.verified` is not authentication. The local API constructs actor assertions, loads case evidence, and serializes its actions with three-finalist/one-winner limits. These are local workbench controls, not a public authentication service or an atomic reservation across other writers. PIN issuance and email delivery remain unimplemented. Effects are returned as previews and `notification.delivered` is false. Independent organizer events omit `causationId`; a request ID is not a recorded event ID.
 
 ## Verification
 

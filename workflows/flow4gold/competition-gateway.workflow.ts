@@ -2,12 +2,14 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 
 // <workflow-map>
 // Workflow : Flow4Gold - Competition Gateway
-// Nodes   : 14  |  Connections: 13
+// Nodes   : 16  |  Connections: 15
 //
 // NODE INDEX
 // ──────────────────────────────────────────────────────────────────
 // Property name                    Node type (short)         Flags
 // TrustedInternalRequest             executeWorkflowTrigger
+// CompetitionServerWebhook           webhook                    [creds]
+// ExtractWebhookBody                 code
 // PrepareAdapter                     code
 // AdapterInput                       code
 // RunPreviewAdapter                  executeWorkflow
@@ -38,6 +40,9 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 //                        → RecordSecondResult
 //                          → BatchResult
 //                   .out(1) → BatchResult (↩ loop)
+// CompetitionServerWebhook
+//    → ExtractWebhookBody
+//      → PrepareAdapter (↩ loop)
 // </workflow-map>
 
 // =====================================================================
@@ -48,7 +53,6 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
     id: 'DH0auiC9UkXNBfRz',
     name: 'Flow4Gold - Competition Gateway',
     active: false,
-    isArchived: false,
     settings: { executionOrder: 'v1' },
 })
 export class Flow4goldCompetitionGatewayWorkflow {
@@ -65,6 +69,40 @@ export class Flow4goldCompetitionGatewayWorkflow {
     })
     TrustedInternalRequest = {
         inputSource: 'passthrough',
+    };
+
+    @node({
+        id: 'competition-gateway-CompetitionWebhook',
+        webhookId: 'flow4gold-competition-gateway',
+        name: 'Competition Server Webhook',
+        type: 'n8n-nodes-base.webhook',
+        version: 2.1,
+        position: [-220, 220],
+        credentials: { httpHeaderAuth: { id: 'IY5r9QTXQxCFlFge', name: 'Flow4Gold Demo Gateway' } },
+    })
+    CompetitionServerWebhook = {
+        httpMethod: 'POST',
+        path: 'flow4gold-competition',
+        authentication: 'headerAuth',
+        responseMode: 'lastNode',
+        responseData: 'firstEntryJson',
+        options: {},
+    };
+
+    @node({
+        id: 'competition-gateway-ExtractWebhookBody',
+        name: 'Extract Webhook Body',
+        type: 'n8n-nodes-base.code',
+        version: 2,
+        position: [0, 220],
+    })
+    ExtractWebhookBody = {
+        mode: 'runOnceForAllItems',
+        jsCode: `const items=$input.all();
+if(items.length!==1)throw new Error('Submit one competition request.');
+const body=items[0].json.body;
+if(!body||typeof body!=='object'||Array.isArray(body))throw new Error('Competition webhook requires a JSON object body.');
+return [{json:body}];`,
     };
 
     @node({
@@ -299,12 +337,12 @@ return [{json:{mode:'persist',adapter:batch.adapter,caseId:batch.caseId,events:b
         position: [220, -350],
     })
     IntegrationBoundary = {
-        content: `## Private competition gateway
-Trusted Execute Workflow callers only. actor.verified is an assertion, not authentication. Fixed adapter mapping; forced preview mode.
+        content: `## Trusted competition gateway
+Internal Execute Workflow callers or the authenticated local demo server webhook. The shared header credential stays on the server. The local server asserts actor identity; actor.verified is not browser authentication. Both entrypoints use the same fixed adapter mapping and forced preview mode.
 Persist one event at a time through the generic core. Register emits two; stop on first failure. Partial results remain visible; retries keep original IDs. No batch transaction.
 Email, PIN issuance and capacity reservations remain unimplemented preview effects. No notification workflow is invoked.`,
-        width: 1040,
-        height: 230,
+        width: 1120,
+        height: 260,
     };
 
     // =====================================================================
@@ -314,6 +352,8 @@ Email, PIN issuance and capacity reservations remain unimplemented preview effec
     @links()
     defineRouting() {
         this.TrustedInternalRequest.out(0).to(this.PrepareAdapter.in(0));
+        this.CompetitionServerWebhook.out(0).to(this.ExtractWebhookBody.in(0));
+        this.ExtractWebhookBody.out(0).to(this.PrepareAdapter.in(0));
         this.PrepareAdapter.out(0).to(this.AdapterInput.in(0));
         this.AdapterInput.out(0).to(this.RunPreviewAdapter.in(0));
         this.RunPreviewAdapter.out(0).to(this.ValidateEventBatch.in(0));

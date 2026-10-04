@@ -22,7 +22,7 @@ export function LiveGraph({machine,current,onInspect}:{machine:Machine;current:L
   const nodes=graph.nodes.map(node=>({...node,className:path ? node.id===current?.state ? 'is-current-state' : path.visited.has(node.id) ? 'is-visited-state' : 'is-unvisited-state' : ''}));
   const edges=graph.edges.map(edge=>{const traveled=path?.transitions.has(`${edge.source}:${edge.data?.event}:${edge.target}`);const color=traveled?'#218569':edge.data?.kind==='decide'?'#9b7bc6':'#a4afb5';return {...edge,markerEnd:{type:MarkerType.ArrowClosed,color,width:16,height:16},style:{stroke:color,strokeWidth:traveled?3:1.3},data:{...edge.data!,onSelect:()=>onInspect(edge.source)}};});
   return <div ref={host} className="live-graph" aria-label="Live process graph">
-    <div className="graph-caption"><span className="eyebrow">THE PROCESS</span><span>Customer refund · v{machine.version}</span></div>
+    <div className="graph-caption"><span className="eyebrow">THE PROCESS</span><span>{machine.machine.split('-').map(word=>word.charAt(0).toUpperCase()+word.slice(1)).join(' ')} · v{machine.version}</span></div>
     {error && <p className="live-error" role="alert">{error}</p>}
     {!graph.nodes.length && !error && <div className="loading"><LoaderCircle className="spin" size={20}/>Arranging process…</div>}
     <ReactFlow<StateFlowNode,EventFlowEdge> nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} onNodeClick={(_,node)=>onInspect(node.id)} nodesDraggable={false} nodesConnectable={false} edgesReconnectable={false} elementsSelectable={false} deleteKeyCode={null} minZoom={0.15} maxZoom={1.8} fitView fitViewOptions={{padding:0.13,maxZoom:1}}><Background variant={BackgroundVariant.Dots} gap={22} size={1.1} color="#dcded9"/></ReactFlow>

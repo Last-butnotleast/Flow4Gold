@@ -1,6 +1,6 @@
 import {useEffect,useMemo,useState} from 'react';
 import {ReactFlowProvider} from '@xyflow/react';
-import {Layers2,MessagesSquare,Package,GitBranch,Plus,SlidersHorizontal,ArrowUpRight} from 'lucide-react';
+import {Layers2,MessagesSquare,Package,GitBranch,Plus,SlidersHorizontal,ArrowUpRight,Trophy,ClipboardList} from 'lucide-react';
 import {api,casePath,type LiveCase} from './live';
 import {parseMachine,type Machine} from './machine';
 import latest from '../../machines/customer-refund.v1.json';
@@ -9,6 +9,7 @@ import {LiveGraph} from './components/LiveGraph';
 import {CaseInspector} from './components/CaseInspector';
 import {SampleOrders} from './components/SampleOrders';
 import MachineExplorer from './MachineExplorer';
+import CompetitionWorkspace from './CompetitionWorkspace';
 import type {DemoOrder} from './orders';
 import {screenFromSearch,addRecentCase,attachToNewDraft,type Screen,type Draft,type RecentCase} from './workspace';
 const emptyDraft:Draft={message:'',orderReference:''};
@@ -39,9 +40,9 @@ export default function App(){
   function useOrder(order:DemoOrder){if(pending)return;setDrafts(previous=>({...previous,new:attachToNewDraft(previous.new,order.orderReference)}));setCaseId('');setCurrent(null);setError('');setScreen('demo');}
   const latestEvents=useMemo(()=>current?.events.slice(-4)??[],[current]);
   const operatorRequired=current?.state==='AWAITING_APPROVAL'||current?.state==='HUMAN_REVIEW';
-  const navigation:[Screen,string,typeof MessagesSquare][]=[['demo','Demo workspace',MessagesSquare],['orders','Sample orders',Package],['explorer','Machine explorer',GitBranch]];
+  const navigation:[Screen,string,typeof MessagesSquare][]=[['demo','Demo workspace',MessagesSquare],['orders','Sample orders',Package],['explorer','Machine explorer',GitBranch],['contestant','Contestant',Trophy],['admin','Admin',ClipboardList]];
   return <div className="product-shell">
-    <header className="product-topbar"><button className="brand" onClick={()=>setScreen('demo')} aria-label="Flow4Gold home"><span className="brand-mark"><Layers2 size={20}/></span><span>flow<span className="brand-number">4</span>gold<span className="brand-dot">.</span></span></button><nav aria-label="Workspace navigation">{navigation.map(([id,label,Icon])=><button key={id} className={screen===id?'active':''} aria-current={screen===id?'page':undefined} onClick={()=>setScreen(id)}><Icon size={15}/><span>{label}</span></button>)}</nav><span className="simulation-pill">SIMULATED PAYMENTS</span></header>
+    <header className="product-topbar"><button className="brand" onClick={()=>setScreen('demo')} aria-label="Flow4Gold home"><span className="brand-mark"><Layers2 size={20}/></span><span>flow<span className="brand-number">4</span>gold<span className="brand-dot">.</span></span></button><nav aria-label="Workspace navigation">{navigation.map(([id,label,Icon])=><button key={id} className={screen===id?'active':''} aria-current={screen===id?'page':undefined} onClick={()=>setScreen(id)}><Icon size={15}/><span>{label}</span></button>)}</nav><span className="simulation-pill">{screen==='contestant'||screen==='admin'?'COMPETITION':'SIMULATED PAYMENTS'}</span></header>
     <div className="product-screen demo-screen" hidden={screen!=='demo'}>
       <section className="demo-case-toolbar"><div className="case-toolbar-title"><span className="eyebrow">LIVE DEMO</span><h1>Payment support, with a process.</h1></div><div className="case-toolbar-controls"><label>Conversation<select aria-label="Recent conversations in this browser" value={caseId} disabled={pending} onChange={e=>e.target.value?openCase(e.target.value):newCase()}><option value="">New conversation</option>{caseId&&!recent.some(item=>item.caseId===caseId)&&<option value={caseId}>{caseId}</option>}{recent.map(item=><option key={item.caseId} value={item.caseId}>{item.caseId}{item.state?` · ${pretty(item.state)}`:''}</option>)}</select></label><button className="button" disabled={pending} onClick={newCase}><Plus size={14}/>New case</button><details className="open-case-menu"><summary>Open by ID</summary><form onSubmit={event=>{event.preventDefault();openCase(openId);event.currentTarget.closest('details')?.removeAttribute('open');}}><label>Case ID<input aria-label="Existing case ID" value={openId} onChange={e=>setOpenId(e.target.value)}/></label><button className="button" disabled={pending||!openId.trim()}>Open</button><small>Recent conversations are saved in this browser only.</small></form></details></div></section>
       <div className="case-state-bar"><span className="case-state-pill"><i/>{current?pretty(current.state):caseId?'Loading case…':'Ready for a new case'}</span><span>{current?`${current.events.length} recorded events · machine v${current.machine.version}`:'AI interprets. The machine controls. People approve.'}</span><button className="button quiet" onClick={()=>{setSelectedState(undefined);setInspect(true);}}><SlidersHorizontal size={14}/>Inspect case</button></div>
@@ -56,6 +57,7 @@ export default function App(){
     </div>
     <div className="product-screen" hidden={screen!=='orders'}><SampleOrders pending={pending} orders={orders} loading={ordersLoading} error={ordersError} onReload={()=>setReload(value=>value+1)} onCreated={order=>setOrders(previous=>[...previous.filter(item=>item.orderReference!==order.orderReference),order])} onUse={useOrder}/></div>
     <div className="product-screen explorer-screen" hidden={screen!=='explorer'}><ReactFlowProvider><MachineExplorer/></ReactFlowProvider></div>
+    <div className="product-screen" hidden={screen!=='contestant'&&screen!=='admin'}><CompetitionWorkspace role={screen==='admin'?'admin':'contestant'} active={screen==='admin'||screen==='contestant'}/></div>
     <CaseInspector open={inspect} current={current} machine={machine} selectedState={selectedState} onClose={()=>setInspect(false)}/>
   </div>;
 }
