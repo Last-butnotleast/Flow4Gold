@@ -11,7 +11,7 @@ import {
   type CompetitionEntry,
   type EntryInput,
 } from './competition';
-import definition from '../../tests/fixtures/flow4gold-submission.v1.json';
+import definition from '../../machines/flow4gold-submission.v1.json';
 import { parseMachine } from './machine';
 const entry = (): CompetitionEntry => ({
   caseId: 'competition-entry',
@@ -159,7 +159,7 @@ describe('competition graph reconciliation', () => {
   it('uses a new definition when a returned version or graph changes', () => {
     const before = entry();
     for (const machine of [
-      { ...before.machine, version: 2 },
+      { ...before.machine, version: before.machine.version + 1 },
       { ...before.machine, description: 'Changed graph metadata' },
     ]) {
       const incoming = { ...before, machine };

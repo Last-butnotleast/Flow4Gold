@@ -16,7 +16,8 @@ function execute(workflow, request) {
     let output = 0;
     if (node.type.endsWith('.code')) json = new Function('$input', node.parameters.jsCode)({first:()=>({json}),all:()=>[{json}]})[0].json;
     if (node.type.endsWith('.switch')) {
-      output = node.parameters.rules.values.findIndex(rule => rule.conditions.conditions.every(condition => expression(condition.leftValue,json) === true));
+      output = expression(node.parameters.output, json);
+      assert.ok(Number.isInteger(output) && output < node.parameters.numberOutputs, 'Valid numeric switch output required');
       assert.notEqual(output,-1,'No switch branch for request');
     }
     if (node.type.endsWith('.set')) {
@@ -31,7 +32,7 @@ function execute(workflow, request) {
   }
   throw new Error('Unexpected workflow cycle');
 }
-const fixture = workflow => JSON.parse(workflow.nodes.find(n=>n.name==='Fictional Demo Input').parameters.jsonOutput);
+const fixture = workflow => Object.fromEntries(workflow.nodes.find(n=>n.name==='Fictional Demo Input').parameters.assignments.assignments.map(item => [item.name, structuredClone(item.value)]));
 const decision = action => ({...fixture(organizer),action,competitionId:'demo',evidence:{reason:'Human decision',revision:'r1',question:'More detail?',juryDecisionId:'jury-1',invitationDetails:'Demo visit',attendanceRecord:'arrival-1',acceptanceDeadline:'2026-10-20T10:00:00Z',checkedAt:'2026-10-21T10:00:00Z',noAcceptanceRecorded:true}});
 const message = state => ({...fixture(notification),state,input:{...fixture(notification).input,registrationPin:'private-demo-pin',invitationDetails:'Demo visit',acceptanceDeadline:'2026-10-21',outcome:'WINNER',reason:'Eligibility failed'}});
 test('organizer routes all action families and preserves deterministic event proposals',()=>{

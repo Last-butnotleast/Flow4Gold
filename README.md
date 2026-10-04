@@ -1,76 +1,76 @@
 # Flow4Gold
 
-Domain state machines running in n8n: the machine owns the process, tasks perform business work, and AI makes bounded decisions. See [the project brief](PROJECT_BRIEF.md).
+An event-sourced state-machine runtime built as an n8n workflow. Define the process in JSON, implement its tasks as ordinary n8n workflows, and reconstruct each case from its accepted events.
 
-**Current checkpoint:** the generic runtime is deployed with fresh tables. Live checks prove refund and Flow4Gold submission cases, including two submission versions, in one event table. [Phase plan and evidence](docs/generic-runtime.md). The competition frontend now uses the live runtime too.
+The machine owns the process. n8n performs the work. AI can make bounded decisions inside a task, choosing among outcomes the current state permits.
 
-## Runtime
+## Why use it?
 
-Definitions are loaded from `machine_definitions`. Each new case explicitly selects a machine and version; every event records that pair. One `case_event_stream` table holds all cases. Replay derives state without repeating work. New transitions can launch a task asynchronously through a `(machine, machineVersion, task)` binding.
+Processes such as refunds, approvals, and submissions outlive individual workflow executions. Flow4Gold makes their allowed transitions, current state, and history explicit, instead of spreading them across branching workflows and prompts.
 
-```json
-{
-  "caseId": "submission-demo-001",
-  "machine": "flow4gold-submission",
-  "machineVersion": 1,
-  "eventId": "submission-demo-001-received",
-  "type": "SUBMISSION_RECEIVED",
-  "payload": {}
-}
+- **One reusable core:** different processes share the same interpreter and event store.
+- **Resumable cases:** an event starts a short runtime execution; another event can continue the case days later.
+- **Traceable decisions:** accepted events explain how a case reached its state. Each case stays pinned to an immutable machine version.
+- **Replaceable tasks:** change integrations, human review, or AI implementations through task bindings without putting them in the process definition.
+
+## How the core works
+
+```mermaid
+flowchart LR
+    A[Trusted adapter or task result] --> B[Load definition and replay case]
+    B --> C[Validate transition]
+    C --> D[Append accepted event]
+    D --> E[Launch bound state task]
+    E --> F[n8n task workflow]
+    F -->|Result event| A
 ```
 
-An identical retry is a no-op. An illegal transition or conflicting event identity is rejected. Inspect without writing:
+[Core Runtime](workflows/flow4gold/core-runtime.workflow.ts) reads definitions from `machine_definitions` and history from `case_event_stream`. It validates each event against the reconstructed state, appends it, and optionally launches the entered state's task through `task_bindings`. Inspection and replay never execute tasks; identical event retries are no-ops.
 
-```json
-{ "caseId": "submission-demo-001", "operation": "inspect" }
-```
+The core has an internal subworkflow entry point. Domain adapters validate business evidence and control which events callers may submit. The supported model is intentionally small: flat states, explicit transitions, final outcomes, and one asynchronous task per entered state. See the [runtime contract](docs/runtime.md).
 
-The core has no public webhook; trusted n8n adapters call it. Business validation belongs to those adapters/tasks. See [persistence](docs/persistence.md), [task contracts](docs/tasks.md), and [table schemas](data-tables/README.md). Events are submitted sequentially; Data Tables do not provide atomic compare-and-append. There is no automatic task dispatch recovery.
+This is a base setup with demo integrations. Events must be submitted sequentially: n8n Data Tables do not provide atomic compare-and-append. Appending an event and launching its task are separate operations, with no automatic dispatch recovery.
 
-## Demo machines
+## Included examples
 
-- [Customer refund](machines/customer-refund.v1.json): real Jev diagnosis, Discord approval/review, simulated refund and verification. The local seed starts fresh at v1; historical compatibility versions are removed.
-- [Flow4Gold submission](docs/competition-frontend.md): contestant/organizer lifecycle, starting with `SUBMISSION_RECEIVED`. This is the second runtime comparison model. The [competition gateway](docs/competition-gateway.md) calls the completed competition adapters and persists their events; email and other effects remain previews. A v2 comparison definition demonstrates a different initial transition.
+The repository contains two machine JSONs:
 
-Other JSON files are graph examples. A valid graph does not supply its business adapters automatically. Once a definition has recorded events, save a new version rather than modify it.
+- [Customer refund v1](machines/customer-refund.v1.json): bounded Jev diagnosis, Discord approval/review, and simulated refund execution.
+- [Competition submission v1](machines/flow4gold-submission.v1.json): an external-event lifecycle for publication, review, finalist selection, and prize acceptance.
 
-## Frontend
+The local frontend includes payment support, sample orders, a machine editor, and contestant/admin views. The competition workbench, adapters and reference definition all use submission **v1**. See [example behavior and integration limits](docs/examples.md).
+
+## Setup
+
+Use Node.js 22.12+ with npm and an n8n instance supporting Data Tables.
 
 ```bash
 npm ci
 npm ci --prefix visualizer
+npm run n8n -- env status --json
+```
+
+Configure the n8n environment, tables, workflow references, and credentials using the [setup guide](docs/setup.md). Workflow sources currently contain deployment-specific IDs, so a new instance needs those references mapped before use.
+
+For a configured deployment, set `N8N_API_KEY` and `FLOW4GOLD_DEMO_TOKEN` in the ignored `.env` file, then run:
+
+```bash
 npm run demo
 ```
 
-Open http://localhost:5173/. The workspace includes payment support, sample orders, the machine editor, and separate competition contestant/organizer views. The explorer imports/edits JSON with live validation and saves immutable definitions to n8n. Saving a definition does not activate tasks or change existing cases. The payment and competition views use domain-specific forms backed by the same core. Competition registration and actions persist through n8n; there are no seeded browser entries or local transition engine. See [competition frontend](docs/competition-frontend.md).
+Open http://localhost:5173. The local bridge keeps credentials server-side. Use `npm run demo:api` if the frontend is already running.
 
-If Vite is already running, use `npm run demo:api` for the bridge only. Credentials stay in the local environment, never in the browser. See [live demo](docs/live-demo.md), [editor](docs/machine-editor.md), and [frontend guide](visualizer/README.md).
-
-## Build and check
+## Development
 
 ```bash
-npm run build
-npm test
-npm run validate
+npm run build              # Bundle runtime/task code into workflow sources
+npm test                   # Runtime, adapter, and server checks
+npm run validate           # Generated-source and n8n schema checks
 npm run visualizer:test
 npm run visualizer:build
-npm run diagram -- machines/customer-refund.v1.json docs/customer-refund.mmd
+npm run format:core:check
 ```
 
-Builds bundle interpreter and task code, not machine JSON. Core and diagnosis read definitions through native Data Table nodes.
+`runtime/` and `shared/` hold interpreter and task logic; `workflows/flow4gold/` holds deployable workflows; `server/` and `visualizer/` provide the local workbench. `npm run diagram -- machines/customer-refund.v1.json` generates a Mermaid diagram on demand.
 
-The core canvas keeps its aligned positions in `runtime/core-layout.json`. After intentionally changing its layout in n8n, pull the workflow and run `npm run core:layout` before rebuilding. `npm run format:core` formats core sources and every generated Code node; `npm run format:core:check` verifies formatting and generated content. Use `npm run build` after shared-validator edits to refresh dependent task bundles. Review stage-note placement after a new alignment. With the pinned n8n-as-code 2.7 toolchain, use sticky-note sections: workflow-level Canvas Group metadata does not survive its TypeScript roundtrip.
-
-## n8n workspace
-
-Use the pinned CLI with `npm run n8n -- ...`. Folder sync maps `workflows/flow4gold/` and its `tasks/` subfolders to n8n. Read [AGENTS.md](AGENTS.md) before workflow edits. Pull before editing a remote workflow; validate before pushing. On n8n 2.x, pushing an already published workflow may publish it: `--draft` preserves the existing production version.
-
-```bash
-npm run n8n -- env status --json
-npm run n8n -- pull <workflow-id>
-npm run n8n -- push <workflow-file> --verify
-```
-
-The environment uses native MCP level 1 for schema sync. The Projects API probe may report `invalid-api-key` when that endpoint is unavailable even though workflow/table operations work. Do not replace credentials solely on that diagnostic.
-
-Secrets, dependency directories, local sync state and build artifacts are excluded from Git. The baseline source snapshot is tagged `baseline-demo`; it does not back up remote tables. Keep one shared branch while parallel task work is underway and stage only owned files.
+Before workflow edits, follow [AGENTS.md](AGENTS.md): pull remote changes, preserve intended canvas positions with `npm run core:layout`, validate, and push only the intended source. Builds bundle code; they do not publish workflows or upload machine definitions.

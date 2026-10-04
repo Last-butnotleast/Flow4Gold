@@ -29,9 +29,10 @@ function runGraph(workflow, inputs) {
     if (node.type.endsWith('.code')) data = [executeCode(node, data)];
     if (node.type.endsWith('.if')) output = matches(node.parameters.conditions, data[0]) ? 0 : 1;
     if (node.type.endsWith('.switch')) {
-      const outputs = node.parameters.rules.values.map((rule, index) => matches(rule.conditions, data[0]) ? index : -1).filter(index => index >= 0);
-      assert.equal(outputs.length, 1, 'Exactly one response branch must match');
-      output = outputs[0];
+      assert.equal(node.parameters.mode, 'expression');
+      const expression = node.parameters.output.slice(3, -2).trim();
+      output = new Function('$json', 'return (' + expression + ');')(data[0]);
+      assert.ok(Number.isInteger(output) && output >= 0 && output < node.parameters.numberOutputs, 'Exactly one valid response output must be selected');
     }
     const connections = workflow.connections[name]?.main?.[output] ?? [];
     assert.ok(connections.length <= 1, 'No duplicated event dispatch at a branch');

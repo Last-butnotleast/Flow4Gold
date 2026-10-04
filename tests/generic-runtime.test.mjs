@@ -4,21 +4,22 @@ import {readFile} from 'node:fs/promises';
 import {parseMachine} from '../shared/machine-validation.mjs';
 import {plan,parcel,start,callback} from './helpers/runtime.mjs';
 const refund=JSON.parse(await readFile('machines/customer-refund.v1.json','utf8'));
-const submission=JSON.parse(await readFile('tests/fixtures/flow4gold-submission.v1.json','utf8'));
+const submission=JSON.parse(await readFile('machines/flow4gold-submission.v1.json','utf8'));
 
 test('refund and submission run interleaved in one event store with their own initial events',()=>{
  const definitions=[refund,submission];const rows=[];
  const append=request=>{const result=plan(request,rows,definitions);assert.equal(result.action,'apply',result.result.reason);rows.push(result.eventRecord);return result;};
  const r=append({caseId:'refund',eventId:'r1',type:'RECEIVED',machine:refund.machine,machineVersion:1});
- const s=append({caseId:'entry',eventId:'s1',type:'SUBMISSION_RECEIVED',machine:submission.machine,machineVersion:1});
+ const s=append({caseId:'entry',eventId:'s1',type:'SUBMISSION_RECEIVED',machine:submission.machine,machineVersion:submission.version});
  assert.equal(r.taskInvocation.task,'diagnose');assert.equal(s.result.currentState,'REGISTERED');assert.equal(s.taskInvocation,null);
- append({caseId:'entry',eventId:'s2',type:'WORKFLOW_LINKED'});
+ append({caseId:'entry',eventId:'s2',type:'PUBLICATION_PENDING'});
+ append({caseId:'entry',eventId:'s3',type:'WORKFLOW_LINKED'});
  append(callback(rows[0],'diagnose','ESCALATE',{reason:'Needs review'}));
- append({caseId:'entry',eventId:'s3',type:'NOT_SELECTED'});
+ append({caseId:'entry',eventId:'s4',type:'NOT_SELECTED'});
  assert.equal(plan({caseId:'refund',operation:'inspect'},rows,definitions).result.currentState,'HUMAN_REVIEW');
  assert.equal(plan({caseId:'entry',operation:'inspect'},rows,definitions).result.outcome,'NOT_SELECTED');
  assert.deepEqual(rows.filter(x=>x.caseId==='refund').map(x=>x.sequence),[1,2]);
- assert.deepEqual(rows.filter(x=>x.caseId==='entry').map(x=>x.sequence),[1,2,3]);
+ assert.deepEqual(rows.filter(x=>x.caseId==='entry').map(x=>x.sequence),[1,2,3,4]);
 });
 test('two versions of one machine stay pinned in shared storage and reject requested identity changes',()=>{
  const v2=structuredClone(parcel);v2.version=2;v2.states.OPEN.on.START.target='WAITING';const definitions=[parcel,v2];

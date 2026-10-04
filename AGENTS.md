@@ -1,6 +1,6 @@
 # Flow4Gold working agreement
 
-- Read `PROJECT_BRIEF.md` when domain context is needed. The state machine owns the process; n8n performs tasks; AI makes bounded decisions.
+- Read `README.md` for the project idea and `docs/runtime.md` for the runtime contract. The state machine owns the process; n8n performs tasks; AI makes bounded decisions.
 - Follow KISS: focus on essentials, make small reviewable changes, and stop at agreed review breakpoints.
 - Delegate bounded implementation or research to sub-agents with explicit file ownership. Do not revert others' work. Keep the main conversation focused on decisions and results.
 - Keep this file limited to durable instructions. Put progress and temporary findings in task notes or `README.md`. Do not run `update-ai` automatically; it expands this deliberately concise file.
