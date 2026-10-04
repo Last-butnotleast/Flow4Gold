@@ -53,7 +53,13 @@ export function parseMachine(input) {
         throw new Error(`states.${id}.tasks must be an array of strings.`);
       if (state.tasks.length > 1)
         throw new Error(`states.${id} supports only one task per entered state.`);
-      state.tasks.forEach((task, index) => string(task, `states.${id}.tasks[${index}]`));
+      state.tasks.forEach((task, index) => {
+        string(task, `states.${id}.tasks[${index}]`);
+        if (task.includes(':'))
+          throw new Error(
+            `states.${id}.tasks[${index}] cannot contain ':'; it is reserved as the task invocation delimiter.`,
+          );
+      });
     }
     const events = new Set();
     for (const kind of ['on', 'decide']) {

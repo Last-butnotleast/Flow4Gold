@@ -29,7 +29,9 @@ Inspection uses `{ "caseId": "entry-001", "operation": "inspect" }`. It returns 
 
 ## Task contract
 
-`task_bindings` maps `(machine, machineVersion, task)` to one n8n workflow ID. A newly accepted transition can launch that task asynchronously:
+Task names must be nonempty, have no surrounding whitespace, and contain no `:`. The colon separates the triggering event ID from the task name in invocation IDs; reserving it prevents ambiguous combinations. Event IDs can still contain colons.
+
+`task_bindings` maps `(machine, machineVersion, task)` to one n8n workflow ID. Surrounding whitespace is trimmed from the workflow ID before dispatch. A newly accepted transition can launch that task asynchronously:
 
 ```json
 {
@@ -44,6 +46,8 @@ Inspection uses `{ "caseId": "entry-001", "operation": "inspect" }`. It returns 
   "input": { "message": "Please check my payment" }
 }
 ```
+
+Only the invocation fields shown above reach the task; workflow selection and other dispatcher metadata remain inside the core.
 
 `input` is the entering event's payload. Tasks may read history or domain tables for additional context. A callback to the core uses:
 

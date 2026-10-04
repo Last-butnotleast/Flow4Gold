@@ -2,7 +2,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 
 // <workflow-map>
 // Workflow : Flow4Gold - Core Runtime
-// Nodes   : 23  |  Connections: 17
+// Nodes   : 24  |  Connections: 18
 //
 // NODE INDEX
 // ──────────────────────────────────────────────────────────────────
@@ -20,6 +20,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // FindTaskBinding                    dataTable                  [alwaysOutput]
 // PrepareTaskDispatch                code
 // BindingAvailable                   if
+// TaskInput                          code
 // RunTask                            executeWorkflow
 // DispatchedResult                   code
 // DispatchUnavailable                code
@@ -46,8 +47,9 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 //                      → FindTaskBinding
 //                        → PrepareTaskDispatch
 //                          → BindingAvailable
-//                            → RunTask
-//                              → DispatchedResult
+//                            → TaskInput
+//                              → RunTask
+//                                → DispatchedResult
 //                           .out(1) → DispatchUnavailable
 //                     .out(1) → AppliedResult
 //               .out(1) → ExistingResult
@@ -249,7 +251,13 @@ function parseMachine(input) {
         throw new Error(\`states.\${id}.tasks must be an array of strings.\`);
       if (state.tasks.length > 1)
         throw new Error(\`states.\${id} supports only one task per entered state.\`);
-      state.tasks.forEach((task, index) => string(task, \`states.\${id}.tasks[\${index}]\`));
+      state.tasks.forEach((task, index) => {
+        string(task, \`states.\${id}.tasks[\${index}]\`);
+        if (task.includes(':'))
+          throw new Error(
+            \`states.\${id}.tasks[\${index}] cannot contain ':'; it is reserved as the task invocation delimiter.\`,
+          );
+      });
     }
     const events = new Set();
     for (const kind of ['on', 'decide']) {
@@ -915,7 +923,7 @@ return [
     json: {
       ...invocation,
       bindingAvailable: available,
-      workflowId: available ? bindings[0].workflowId : '',
+      workflowId: available ? bindings[0].workflowId.trim() : '',
       dispatchReason: available
         ? ''
         : 'Task requires exactly one machine/version/task binding with a workflowId.',
@@ -957,6 +965,20 @@ return [
     };
 
     @node({
+        id: 'flow4gold-TaskInput',
+        name: 'Task Input',
+        type: 'n8n-nodes-base.code',
+        version: 2,
+        position: [2912, -368],
+    })
+    TaskInput = {
+        mode: 'runOnceForAllItems',
+        language: 'javaScript',
+        jsCode: `return [{ json: $('Plan Transition').first().json.taskInvocation }];
+`,
+    };
+
+    @node({
         id: 'flow4gold-RunTask',
         name: 'Run Task',
         type: 'n8n-nodes-base.executeWorkflow',
@@ -967,7 +989,7 @@ return [
         source: 'database',
         workflowId: {
             __rl: true,
-            value: '={{ $json.workflowId }}',
+            value: "={{ $('Prepare Task Dispatch').first().json.workflowId }}",
             mode: 'id',
         },
         mode: 'each',
@@ -1135,13 +1157,13 @@ One accepted event = one row. Restore the plan after insertion. The lower branch
         name: '4 · Dispatch and return',
         type: 'n8n-nodes-base.stickyNote',
         version: 1,
-        position: [2208, -400],
+        position: [2208, -592],
     })
     _4DispatchAndReturn = {
         content: `## 4 · Start the task, then finish
 Resolve exactly one machine/version/task binding. Start without waiting; its callback is a new event. Missing binding returns unavailable; no task returns the applied state.`,
         width: 1104,
-        height: 688,
+        height: 880,
         color: 6,
     };
 
@@ -1165,8 +1187,9 @@ Resolve exactly one machine/version/task binding. Start without waiting; its cal
         this.HasTask.out(1).to(this.AppliedResult.in(0));
         this.FindTaskBinding.out(0).to(this.PrepareTaskDispatch.in(0));
         this.PrepareTaskDispatch.out(0).to(this.BindingAvailable.in(0));
-        this.BindingAvailable.out(0).to(this.RunTask.in(0));
+        this.BindingAvailable.out(0).to(this.TaskInput.in(0));
         this.BindingAvailable.out(1).to(this.DispatchUnavailable.in(0));
+        this.TaskInput.out(0).to(this.RunTask.in(0));
         this.RunTask.out(0).to(this.DispatchedResult.in(0));
     }
 }

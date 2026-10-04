@@ -43,3 +43,19 @@ test('taskResult is explicit true only, requires source task, initial states are
  const activeInitial=structuredClone(parcel);activeInitial.states.OPEN.tasks=['work'];assert.throws(()=>parseMachine(activeInitial),/Initial state must be passive/);
  assert.deepEqual(parseMachine(parcel),parcel);
 });
+
+test('task names cannot create ambiguous invocation IDs while colon event IDs remain valid',()=>{
+ const left=structuredClone(parcel);left.machine='left';left.states.WORKING.tasks=['b:c'];
+ // Before validation, these two distinct event/task pairs produced the same ID.
+ assert.equal(`${'a'}:${'b:c'}`,`${'a:b'}:${'c'}`);
+ assert.throws(()=>parseMachine(left),/cannot contain ':'; it is reserved as the task invocation delimiter/);
+ for(const task of [':work','work:',':']){const invalid=structuredClone(parcel);invalid.states.WORKING.tasks=[task];assert.throws(()=>parseMachine(invalid),/cannot contain ':'/);}
+ left.states.WORKING.tasks=['b-c'];
+ const right=structuredClone(parcel);right.machine='right';right.states.WORKING.tasks=['c'];
+ const definitions=[parseMachine(left),parseMachine(right)];const history=[];
+ const one=plan(start({caseId:'one',eventId:'a',machine:'left'}),history,definitions);history.push(one.eventRecord);
+ const two=plan(start({caseId:'two',eventId:'a:b',machine:'right'}),history,definitions);history.push(two.eventRecord);
+ assert.notEqual(one.taskInvocation.taskInvocationId,two.taskInvocation.taskInvocationId);
+ for(const [entry,task] of [[one.eventRecord,'b-c'],[two.eventRecord,'c']]){const result=plan(callback(entry,task,'DONE'),history,definitions);assert.equal(result.action,'apply',result.result.reason);history.push(result.eventRecord);}
+ const flexible=structuredClone(parcel);flexible.states.WORKING.tasks=['handle reply / café'];assert.doesNotThrow(()=>parseMachine(flexible));
+});

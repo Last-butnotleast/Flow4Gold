@@ -78,3 +78,63 @@ test('catalog rejects malformed or duplicate definitions but does not depend on 
  assert.equal(load(catalog([parcel]).map(row=>({...row,isDefault:false})))[0].json.definitions[0].machine,'parcel');
  reject(plan(start(),[],[]));
 });
+
+// Follow the generated post-plan graph, emulating only storage and subworkflow boundaries.
+function dispatchGraph(planned, bindings = []) {
+  const previous = { 'Plan Transition': [planned] };
+  const writes = [], calls = [], visited = [];
+  let name = 'Append Event?', items = [planned];
+  const expression = source => new Function('$json', '$', 'return (' + source.slice(3, -2).trim() + ');')(
+    items[0], key => ({first: () => ({json: previous[key][0]})}),
+  );
+  while (name) {
+    visited.push(name);
+    assert.ok(visited.length < 20, 'Dispatch graph terminates');
+    const current = node(name); let port = 0;
+    if (current.type === 'n8n-nodes-base.code') items = execute(name, items, previous).map(item => item.json);
+    else if (current.type === 'n8n-nodes-base.if') {
+      const condition = current.parameters.conditions.conditions[0];
+      port = expression(condition.leftValue) === condition.rightValue ? 0 : 1;
+    } else if (current.type === 'n8n-nodes-base.dataTable') {
+      if (current.parameters.operation === 'insert') {
+        const row = Object.fromEntries(Object.entries(current.parameters.columns.value).map(([key,value]) => [key,expression(value)]));
+        writes.push(row); items = [{...row,id:123,createdAt:'storage-metadata'}];
+      } else { assert.equal(name,'Find Task Binding'); items = bindings.length ? bindings : [{}]; }
+    } else if (current.type === 'n8n-nodes-base.executeWorkflow') {
+      calls.push({workflowId:expression(current.parameters.workflowId.value),input:structuredClone(items[0])});
+      assert.equal(current.parameters.options.waitForSubWorkflow,false);
+    } else assert.fail('Unexpected dispatch node ' + name);
+    previous[name] = structuredClone(items);
+    const links = workflow.connections[name]?.main?.[port] ?? [];
+    assert.ok(links.length <= 1, 'No duplicated side-effect branch');
+    name = links[0]?.node;
+  }
+  return {result:items[0],writes,calls,visited};
+}
+
+test('generated append/dispatch graph trims workflow IDs and sends only the task invocation contract',()=>{
+  const planned = plan(start({payload:{message:'domain input',workflowId:'not routing'}}));
+  const outcome = dispatchGraph(planned,[{machine:'parcel',machineVersion:1,task:'work',workflowId:'  real-workflow-id  '}]);
+  assert.deepEqual(outcome.writes,[planned.eventRecord]);
+  assert.deepEqual(outcome.calls,[{workflowId:'real-workflow-id',input:planned.taskInvocation}]);
+  assert.deepEqual(Object.keys(outcome.calls[0].input).sort(),['caseId','task','taskInvocationId','triggerEventId','correlationId','state','machine','machineVersion','input'].sort());
+  assert.ok(outcome.visited.indexOf('Append Event') < outcome.visited.indexOf('Run Task'));
+  assert.equal(outcome.result.status,'applied');assert.equal(outcome.result.dispatch.status,'started');
+  assert.equal(outcome.result.dispatch.taskInvocationId,planned.taskInvocation.taskInvocationId);
+});
+
+test('generated return branches avoid task input and invocation when no dispatch is permitted',()=>{
+  const planned = plan(start());
+  for (const bindings of [[],[{machine:'parcel',machineVersion:1,task:'work',workflowId:'   '}]]) {
+    const unavailable = dispatchGraph(planned,bindings);
+    assert.equal(unavailable.writes.length,1);assert.equal(unavailable.calls.length,0);
+    assert.equal(unavailable.result.dispatch.status,'unavailable');assert.ok(!unavailable.visited.includes('Task Input'));
+  }
+  const passive=dispatchGraph(plan(start({type:'CANCEL'})));
+  assert.equal(passive.writes.length,1);assert.equal(passive.calls.length,0);assert.equal(passive.result.currentState,'CLOSED');
+  for(const request of [start(),{caseId:'case-1',operation:'inspect'},{caseId:'case-1',eventId:'bad',type:'INVALID'}]) {
+    const outcome=dispatchGraph(plan(request,[planned.eventRecord]));
+    assert.equal(outcome.writes.length,0);assert.equal(outcome.calls.length,0);
+    assert.ok(!outcome.visited.includes('Task Input'));
+  }
+});

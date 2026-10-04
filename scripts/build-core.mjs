@@ -196,13 +196,24 @@ export async function buildSource() {
     `const invocation = $('Plan Transition').first().json.taskInvocation;
 const bindings = $input.all().map(item => item.json).filter(row => row.task === invocation.task && row.machine === invocation.machine && row.machineVersion === invocation.machineVersion);
 const available = bindings.length === 1 && typeof bindings[0].workflowId === 'string' && !!bindings[0].workflowId.trim();
-return [{ json: { ...invocation, bindingAvailable: available, workflowId: available ? bindings[0].workflowId : '',
+return [{ json: { ...invocation, bindingAvailable: available, workflowId: available ? bindings[0].workflowId.trim() : '',
   dispatchReason: available ? '' : 'Task requires exactly one machine/version/task binding with a workflowId.' } }];`,
   );
   condition('BindingAvailable', 'Binding Available?', 2400, 'bindingAvailable', true);
+  code(
+    'TaskInput',
+    'Task Input',
+    2912,
+    -368,
+    "return [{ json: $('Plan Transition').first().json.taskInvocation }];",
+  );
   node('RunTask', 'Run Task', 'executeWorkflow', 1.3, [2640, -100], {
     source: 'database',
-    workflowId: { __rl: true, value: '={{ $json.workflowId }}', mode: 'id' },
+    workflowId: {
+      __rl: true,
+      value: "={{ $('Prepare Task Dispatch').first().json.workflowId }}",
+      mode: 'id',
+    },
     mode: 'each',
     options: { waitForSubWorkflow: false },
   });
@@ -263,11 +274,11 @@ return [{ json: { ...invocation, bindingAvailable: available, workflowId: availa
     height: 560,
     color: 3,
   });
-  node('DispatchSection', '4 · Dispatch and return', 'stickyNote', 1, [2208, -400], {
+  node('DispatchSection', '4 · Dispatch and return', 'stickyNote', 1, [2208, -592], {
     content:
       '## 4 · Start the task, then finish\nResolve exactly one machine/version/task binding. Start without waiting; its callback is a new event. Missing binding returns unavailable; no task returns the applied state.',
     width: 1104,
-    height: 688,
+    height: 880,
     color: 6,
   });
   link('ReceiveEvent', 'PrepareEvent');
@@ -284,7 +295,8 @@ return [{ json: { ...invocation, bindingAvailable: available, workflowId: availa
   link('HasTask', 'AppliedResult', 1);
   link('FindTaskBinding', 'PrepareTaskDispatch');
   link('PrepareTaskDispatch', 'BindingAvailable');
-  link('BindingAvailable', 'RunTask');
+  link('BindingAvailable', 'TaskInput');
+  link('TaskInput', 'RunTask');
   link('BindingAvailable', 'DispatchUnavailable', 1);
   link('RunTask', 'DispatchedResult');
   const formattedNodes = await Promise.all(
@@ -305,7 +317,7 @@ return [{ json: { ...invocation, bindingAvailable: available, workflowId: availa
 // ReceiveEvent -> PrepareEvent -> ReadMachineDefinitions -> LoadMachineDefinitions -> FindEvent -> PlanTransition -> ApplyTransition
 // ApplyTransition [true] -> AppendEvent -> AfterAppend -> HasTask
 // HasTask [true] -> FindTaskBinding -> PrepareTaskDispatch -> BindingAvailable
-// BindingAvailable [true] -> RunTask (async) -> DispatchedResult
+// BindingAvailable [true] -> TaskInput -> RunTask (async) -> DispatchedResult
 // BindingAvailable [false] -> DispatchUnavailable
 // HasTask [false] -> AppliedResult
 // ApplyTransition [false] -> ExistingResult
