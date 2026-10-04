@@ -128,13 +128,11 @@ describe('competition HTTP client', () => {
   it('propagates server rejection instead of computing an optimistic transition', async () => {
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue({
-          ok: false,
-          status: 409,
-          json: async () => ({ error: 'Finalist capacity reached' }),
-        }),
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 409,
+        json: async () => ({ error: 'Finalist capacity reached' }),
+      }),
     );
     await expect(
       recordCompetitionAction('competition-entry', 'FINALIST_SELECTED', { reason: 'Jury' }, 'id'),
@@ -171,5 +169,21 @@ describe('competition graph reconciliation', () => {
       incoming = { ...structuredClone(before), caseId: 'competition-other' };
     expect(reconcileEntries([before], [incoming])[0]).toBe(incoming);
     expect(reconcileEntries([before], [])).toEqual([]);
+  });
+});
+
+describe('competition state-task boundaries', () => {
+  it('does not offer task-result transitions as manual actions', () => {
+    const saved = entry();
+    const model = structuredClone(saved.machine);
+    model.states.REGISTERED.tasks = ['prepare_submission'];
+    model.states.REGISTERED.on!.WORKFLOW_LINKED.taskResult = true;
+    model.states.REGISTERED.on!.PUBLICATION_PENDING.taskResult = true;
+    const preparing = { ...saved, machine: model, state: 'REGISTERED' };
+    expect(allowedEvents(preparing, 'contestant')).toEqual(['WITHDRAWN']);
+    expect(allowedEvents(preparing, 'admin')).toEqual([]);
+    expect(
+      allowedEvents({ ...preparing, state: 'WAITING_FOR_PUBLICATION' }, 'contestant'),
+    ).toContain('WORKFLOW_LINKED');
   });
 });

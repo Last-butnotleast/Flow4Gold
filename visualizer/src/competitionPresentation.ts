@@ -2,7 +2,7 @@ import { allowedEvents, type CompetitionEntry } from './competition';
 
 const statuses: Record<string, string> = {
   OPEN: 'Not submitted',
-  REGISTERED: 'Registered',
+  REGISTERED: 'Preparing submission',
   WAITING_FOR_PUBLICATION: 'Awaiting publication',
   ADMIN_REVIEW: 'In review',
   NEEDS_INFORMATION: 'Your response needed',
@@ -35,8 +35,8 @@ export interface NextStep {
 const steps: Record<string, [string, string]> = {
   OPEN: ['Complete your registration', 'Submit your entry and video to join the competition.'],
   REGISTERED: [
-    'Add your published workflow',
-    'Your registration is saved. Share the workflow ID when your template is published.',
+    'Preparing your submission',
+    'Your registration is saved. We are checking its publication details before the next step.',
   ],
   WAITING_FOR_PUBLICATION: [
     'Add your published workflow',
@@ -110,7 +110,6 @@ export function competitionStats(entries: CompetitionEntry[]): {
   const waiting = new Set([
     'NEEDS_INFORMATION',
     'WAITING_FOR_PUBLICATION',
-    'REGISTERED',
     'INVITED',
     'AWAITING_PRIZE_ACCEPTANCE',
   ]);
@@ -143,4 +142,18 @@ export function entriesForContestant(
   email: string,
 ): CompetitionEntry[] {
   return entries.filter((entry) => normalizedEmail(entry.email) === normalizedEmail(email));
+}
+
+/** Message text comes only from a stored task output, never from state-derived next-step copy. */
+export function inboxState(entry: CompetitionEntry) {
+  const current = entry.notification?.status === 'delivered' ? entry.notification.current : null;
+  return {
+    current,
+    preparing: entry.state === 'REGISTERED',
+    pending: entry.notification?.status === 'pending',
+    history: (entry.notifications ?? [])
+      .filter((row) => row.taskInvocationId !== current?.taskInvocationId)
+      .slice()
+      .sort((a, b) => b.sequence - a.sequence),
+  };
 }

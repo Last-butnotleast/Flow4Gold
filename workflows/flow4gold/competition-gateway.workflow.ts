@@ -2,7 +2,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 
 // <workflow-map>
 // Workflow : Flow4Gold - Competition Gateway
-// Nodes   : 16  |  Connections: 15
+// Nodes   : 12  |  Connections: 10
 //
 // NODE INDEX
 // ──────────────────────────────────────────────────────────────────
@@ -17,10 +17,6 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // FirstEvent                         code
 // ApplyFirstEvent                    executeWorkflow            [onError→regular]
 // RecordFirstResult                  code
-// ContinueBatch                      if
-// SecondEvent                        code
-// ApplySecondEvent                   executeWorkflow            [onError→regular]
-// RecordSecondResult                 code
 // BatchResult                        code
 // IntegrationBoundary                stickyNote
 //
@@ -34,12 +30,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 //            → FirstEvent
 //              → ApplyFirstEvent
 //                → RecordFirstResult
-//                  → ContinueBatch
-//                    → SecondEvent
-//                      → ApplySecondEvent
-//                        → RecordSecondResult
-//                          → BatchResult
-//                   .out(1) → BatchResult (↩ loop)
+//                  → BatchResult
 // CompetitionServerWebhook
 //    → ExtractWebhookBody
 //      → PrepareAdapter (↩ loop)
@@ -53,6 +44,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
     id: 'DH0auiC9UkXNBfRz',
     name: 'Flow4Gold - Competition Gateway',
     active: false,
+    isArchived: false,
     settings: { executionOrder: 'v1' },
 })
 export class Flow4goldCompetitionGatewayWorkflow {
@@ -168,7 +160,7 @@ return [{json:{adapter:envelope.adapter,workflowId:mappings[envelope.adapter],in
         mode: 'runOnceForAllItems',
         jsCode: `const items=$input.all();if(items.length!==1)throw new Error('Adapter must return one event batch.');
 const preview=items[0].json;const prepared=$('Prepare Adapter').first().json;
-if(preview.mode!=='preview'||preview.persisted!==false||!Array.isArray(preview.events)||preview.events.length!==(prepared.adapter==='register'?2:1))throw new Error('Unexpected adapter event batch.');
+if(preview.mode!=='preview'||preview.persisted!==false||!Array.isArray(preview.events)||preview.events.length!==1)throw new Error('Unexpected adapter event batch.');
 const keys=['eventId','caseId','machine','machineVersion','type','payload','correlationId','causationId'];
 const events=preview.events;
 const ids=new Set();
@@ -177,7 +169,7 @@ for(const [index,event] of events.entries()){
  if(event.caseId!==prepared.input.caseId||event.correlationId!==prepared.input.correlationId||event.machine!=='flow4gold-submission'||event.machineVersion!==1)throw new Error('Adapter event identity mismatch.');
  if(typeof event.eventId!=='string'||!event.eventId.trim()||typeof event.type!=='string'||!event.type.trim()||!event.payload||typeof event.payload!=='object'||Array.isArray(event.payload))throw new Error('Malformed adapter event.');
  if(ids.has(event.eventId))throw new Error('Adapter repeated an event identity.');ids.add(event.eventId);
- if(index>0&&event.causationId!==events[index-1].eventId)throw new Error('Second event must cite the first event.');
+ if(prepared.adapter==='register'&&event.type!=='SUBMISSION_RECEIVED')throw new Error('Registration must propose SUBMISSION_RECEIVED.');
 }
 return [{json:{adapter:prepared.adapter,caseId:prepared.input.caseId,events,effects:preview.effects??[]}}];`,
     };
@@ -224,86 +216,7 @@ return [{json:{adapter:prepared.adapter,caseId:prepared.input.caseId,events,effe
     })
     RecordFirstResult = {
         mode: 'runOnceForAllItems',
-        jsCode: `const batch=$('Validate Event Batch').first().json;const result=$input.first().json;
-const matched=result.caseId===batch.caseId&&result.eventId===batch.events[0].eventId;
-const accepted=matched&&['applied','duplicate'].includes(result.status);
-return [{json:{...batch,results:[result],continueBatch:accepted&&batch.events.length===2}}];`,
-    };
-
-    @node({
-        id: 'competition-gateway-ContinueBatch',
-        name: 'Continue Batch?',
-        type: 'n8n-nodes-base.if',
-        version: 2.3,
-        position: [1760, 0],
-    })
-    ContinueBatch = {
-        conditions: {
-            options: {
-                caseSensitive: true,
-                leftValue: '',
-                typeValidation: 'strict',
-                version: 3,
-            },
-            conditions: [
-                {
-                    id: 'continue',
-                    leftValue: '={{ $json.continueBatch }}',
-                    rightValue: true,
-                    operator: {
-                        type: 'boolean',
-                        operation: 'equals',
-                    },
-                },
-            ],
-            combinator: 'and',
-        },
-        options: {},
-    };
-
-    @node({
-        id: 'competition-gateway-SecondEvent',
-        name: 'Second Event',
-        type: 'n8n-nodes-base.code',
-        version: 2,
-        position: [1980, 0],
-    })
-    SecondEvent = {
-        mode: 'runOnceForAllItems',
-        jsCode: "return [{json:$('Record First Result').first().json.events[1]}];",
-    };
-
-    @node({
-        id: 'competition-gateway-ApplySecond',
-        name: 'Apply Second Event',
-        type: 'n8n-nodes-base.executeWorkflow',
-        version: 1.3,
-        position: [2200, 0],
-        onError: 'continueRegularOutput',
-    })
-    ApplySecondEvent = {
-        source: 'database',
-        workflowId: {
-            __rl: true,
-            value: 'frF2jemAeCrcFPDe',
-            mode: 'id',
-        },
-        mode: 'each',
-        options: {
-            waitForSubWorkflow: true,
-        },
-    };
-
-    @node({
-        id: 'competition-gateway-RecordSecond',
-        name: 'Record Second Result',
-        type: 'n8n-nodes-base.code',
-        version: 2,
-        position: [2420, 0],
-    })
-    RecordSecondResult = {
-        mode: 'runOnceForAllItems',
-        jsCode: "const batch=$('Record First Result').first().json;return [{json:{...batch,results:[...batch.results,$input.first().json]}}];",
+        jsCode: "const batch=$('Validate Event Batch').first().json;return [{json:{...batch,results:[$input.first().json]}}];",
     };
 
     @node({
@@ -311,7 +224,7 @@ return [{json:{...batch,results:[result],continueBatch:accepted&&batch.events.le
         name: 'Batch Result',
         type: 'n8n-nodes-base.code',
         version: 2,
-        position: [2640, 160],
+        position: [1760, 0],
     })
     BatchResult = {
         mode: 'runOnceForAllItems',
@@ -321,8 +234,8 @@ const acceptedCount=batch.results.filter(accepted).length;
 const complete=acceptedCount===batch.events.length;
 const last=batch.results.at(-1);const lastIndex=batch.results.length-1;
 const rejected=last?.status==='rejected'&&last.caseId===batch.caseId&&last.eventId===batch.events[lastIndex].eventId;
-const status=complete?'completed':rejected?(acceptedCount?'partial':'rejected'):'uncertain';
-return [{json:{mode:'persist',adapter:batch.adapter,caseId:batch.caseId,events:batch.events,results:batch.results,status,persisted:complete,partiallyPersisted:!complete&&acceptedCount>0,
+const status=complete?'completed':rejected?'rejected':'uncertain';
+return [{json:{mode:'persist',adapter:batch.adapter,caseId:batch.caseId,events:batch.events,results:batch.results,status,persisted:complete,partiallyPersisted:false,
  appliedCount:batch.results.filter((result,index)=>accepted(result,index)&&result.status==='applied').length,
  duplicateCount:batch.results.filter((result,index)=>accepted(result,index)&&result.status==='duplicate').length,
  unattemptedEventIds:batch.events.slice(batch.results.length).map(event=>event.eventId),effects:batch.effects,notification:{delivered:false},
@@ -339,8 +252,8 @@ return [{json:{mode:'persist',adapter:batch.adapter,caseId:batch.caseId,events:b
     IntegrationBoundary = {
         content: `## Trusted competition gateway
 Internal Execute Workflow callers or the authenticated local demo server webhook. The shared header credential stays on the server. The local server asserts actor identity; actor.verified is not browser authentication. Both entrypoints use the same fixed adapter mapping and forced preview mode.
-Persist one event at a time through the generic core. Register emits two; stop on first failure. Partial results remain visible; retries keep original IDs. No batch transaction.
-Email, PIN issuance and capacity reservations remain unimplemented preview effects. No notification workflow is invoked.`,
+Persist exactly one external event through the generic core. Registration starts the REGISTERED state task; publication status and in-app notifications run asynchronously through scoped task bindings. Completed means this event was accepted, not that its task finished. Retry unchanged requests with original IDs.
+No email or PIN is issued. The gateway does not run state tasks itself; the generic core does.`,
         width: 1120,
         height: 260,
     };
@@ -360,11 +273,6 @@ Email, PIN issuance and capacity reservations remain unimplemented preview effec
         this.ValidateEventBatch.out(0).to(this.FirstEvent.in(0));
         this.FirstEvent.out(0).to(this.ApplyFirstEvent.in(0));
         this.ApplyFirstEvent.out(0).to(this.RecordFirstResult.in(0));
-        this.RecordFirstResult.out(0).to(this.ContinueBatch.in(0));
-        this.ContinueBatch.out(0).to(this.SecondEvent.in(0));
-        this.ContinueBatch.out(1).to(this.BatchResult.in(0));
-        this.SecondEvent.out(0).to(this.ApplySecondEvent.in(0));
-        this.ApplySecondEvent.out(0).to(this.RecordSecondResult.in(0));
-        this.RecordSecondResult.out(0).to(this.BatchResult.in(0));
+        this.RecordFirstResult.out(0).to(this.BatchResult.in(0));
     }
 }

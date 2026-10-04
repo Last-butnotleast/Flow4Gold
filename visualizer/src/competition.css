@@ -1026,3 +1026,65 @@
   display: grid;
   gap: 7px;
 }
+
+.competition-stored-inbox:empty {
+  display: none;
+}
+.competition-delivered-message {
+  padding: 18px 20px;
+  border: 1px solid #dce8d3;
+  border-radius: 9px;
+  background: #f6faf1;
+  margin-bottom: 14px;
+}
+.competition-delivered-message h3,
+.competition-inbox-pending h3 {
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 8px 0;
+}
+.competition-delivered-message p,
+.competition-inbox-pending p {
+  font-size: 12px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  color: #697a5b;
+}
+.competition-inbox-pending {
+  padding: 18px 20px;
+  background: #faf9f1;
+  border: 1px dashed #dedcc3;
+  border-radius: 9px;
+  margin-bottom: 14px;
+}
+.competition-inbox-pending .eyebrow {
+  color: #9f905d;
+}
+.competition-notification-history {
+  margin: 12px 0 18px;
+  font-size: 11px;
+  color: #7b8a6a;
+}
+.competition-notification-history summary {
+  cursor: pointer;
+}
+.competition-notification-history article {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.competition-notification-history strong {
+  font-size: 12px;
+}
+.competition-notification-history p {
+  margin: 7px 0;
+  font-size: 11px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+.competition-notification-history small {
+  color: #9da78f;
+  font-size: 9px;
+}
+.competition-entry-inbox {
+  margin-bottom: 18px;
+}

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { compiledWorkflow } from '../scripts/build-core.mjs';
 const directory = 'workflows/flow4gold/tasks/competition/';
 const organizer = await compiledWorkflow(directory + 'handle-organizer-action.workflow.ts');
-const notification = await compiledWorkflow(directory + 'notify-participant.workflow.ts');
 const expression = (value, json) => typeof value === 'string' && value.startsWith('={{') ? new Function('$json', 'return (' + value.slice(3,-2) + ');')(json) : value;
 // Follow compiled native routes; a missing/miswired branch fails, rather than testing isolated snippets.
 function execute(workflow, request) {
@@ -34,7 +33,7 @@ function execute(workflow, request) {
 }
 const fixture = workflow => Object.fromEntries(workflow.nodes.find(n=>n.name==='Fictional Demo Input').parameters.assignments.assignments.map(item => [item.name, structuredClone(item.value)]));
 const decision = action => ({...fixture(organizer),action,competitionId:'demo',evidence:{reason:'Human decision',revision:'r1',question:'More detail?',juryDecisionId:'jury-1',invitationDetails:'Demo visit',attendanceRecord:'arrival-1',acceptanceDeadline:'2026-10-20T10:00:00Z',checkedAt:'2026-10-21T10:00:00Z',noAcceptanceRecorded:true}});
-const message = state => ({...fixture(notification),state,input:{...fixture(notification).input,registrationPin:'private-demo-pin',invitationDetails:'Demo visit',acceptanceDeadline:'2026-10-21',outcome:'WINNER',reason:'Eligibility failed'}});
+
 test('organizer routes all action families and preserves deterministic event proposals',()=>{
  const routes={INFORMATION_REQUESTED:'Record Missing Information',ENTRY_DISQUALIFIED:'Record Disqualification Reason',FINALIST_SELECTED:'Validate Human Jury Decision',NOT_SELECTED:'Validate Human Jury Decision',CHECKED_IN:'Validate Attendance Evidence',NO_SHOW_RECORDED:'Validate Attendance Evidence',WINNER_SELECTED:'Validate Human Jury Decision',RUNNER_UP_SELECTED:'Validate Human Jury Decision',PRIZE_ACCEPTANCE_EXPIRED:'Verify Acceptance Expiry'};
  for(const [action,branch] of Object.entries(routes)) {
@@ -54,29 +53,4 @@ test('organizer fails closed for invalid identity, action evidence and expiry',(
  }
  const request=decision('PRIZE_ACCEPTANCE_EXPIRED'); request.evidence.checkedAt=request.evidence.acceptanceDeadline; assert.throws(()=>execute(organizer,request));
  for(const action of ['FINALIST_SELECTED','WINNER_SELECTED']) {const request=decision(action);delete request.competitionId;assert.throws(()=>execute(organizer,request));}
-});
-test('notification native branches render every state and expose the PIN only for registration',()=>{
- const states=['REGISTERED','WAITING_FOR_PUBLICATION','ADMIN_REVIEW','NEEDS_INFORMATION','INVITED','CONFIRMED','JUDGING','AWAITING_PRIZE_ACCEPTANCE','CLOSED'];
- const branches=new Set();
- for(const state of states) {
-  const {json,visited}=execute(notification,message(state));
-  branches.add(visited.find(name=>name.endsWith(' Message')&&name!=='Compose Participant Message'));
-  assert.equal(json.delivered,false); assert.deepEqual(json.events,[]);
-  assert.equal(json.effects[0].status,'preview');
-  assert.equal(json.effects[0].text.includes('private-demo-pin'),state==='REGISTERED');
-  assert.ok(json.effects[0].text.includes('\n\nEntry: demo-entry-001'));
-  assert.equal(json.effects[0].deliveryKey,message(state).taskInvocationId);
- }
- assert.equal(branches.size,6);
-});
-test('closed notification template supports all explicit outcomes',()=>{
- for(const outcome of ['WITHDRAWN','NOT_SELECTED','DISQUALIFIED','DECLINED','NO_SHOW','RUNNER_UP','WINNER','PRIZE_UNCLAIMED']) {
-   const request=message('CLOSED');request.input.outcome=outcome;
-   assert.ok(execute(notification,request).json.effects[0].subject.endsWith(outcome));
- }
-});
-test('notification rejects untrusted recipients, unsafe mode, missing templates and required fields',()=>{
- for(const patch of [{mode:'apply'},{state:'OPEN'},{taskInvocationId:'bad'},{machineVersion:2}]) assert.throws(()=>execute(notification,{...message('REGISTERED'),...patch}));
- for(const patch of [{recipientVerified:false},{recipientEmail:'invalid'},{responseUrl:'http://example.invalid'}]) assert.throws(()=>execute(notification,{...message('REGISTERED'),input:{...message('REGISTERED').input,...patch}}));
- for(const [state,field] of [['REGISTERED','registrationPin'],['NEEDS_INFORMATION','question'],['INVITED','invitationDetails'],['AWAITING_PRIZE_ACCEPTANCE','acceptanceDeadline'],['CLOSED','outcome']]) {const request=message(state);delete request.input[field];assert.throws(()=>execute(notification,request));}
 });

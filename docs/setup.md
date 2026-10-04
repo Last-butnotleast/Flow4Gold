@@ -23,11 +23,11 @@ Provide the API key through stdin. Resolve any access diagnostic before deployme
 
 ## Prepare n8n
 
-1. Create `case_event_stream`, `machine_definitions`, and `task_bindings` in the workflows' project using the [table schemas](../data-tables/README.md). The refund demo also needs `demo_orders`.
+1. Create `case_event_stream`, `machine_definitions`, and `task_bindings` in the workflows' project using the [table schemas](../data-tables/README.md). The refund demo also needs `demo_orders`; competition tasks need `competition_notifications`.
 2. Map deployment-specific Data Table, workflow, and credential IDs to your instance. References appear in `scripts/build-*.mjs`, workflow sources, and `server/demo-server.mjs`. Edit generators for generated workflows, then run `npm run build`.
 3. Configure header authentication for the demo gateways. The bridge sends `X-Flow4Gold-Demo`; its `FLOW4GOLD_DEMO_TOKEN` must match the n8n credential. Refund diagnosis also requires the OpenRouter credential; approval/review require the Discord webhook credential.
 4. Save the two local JSON definitions to `machine_definitions`, using the editor/API once the bridge can access the catalog, or seed validated rows with the documented schema. Preserve all existing definitions referenced by recorded events. Set one catalog default for the editor.
-5. Populate refund v1 bindings for `diagnose`, `request_approval`, `human_review`, `issue_refund`, and `verify_refund` with the deployed task workflow IDs. Submission v1 uses external events and has no state tasks.
+5. Populate refund v1 bindings for `diagnose`, `request_approval`, `human_review`, `issue_refund`, and `verify_refund` with the deployed task workflow IDs. Submission v1 needs `prepare_submission` and `notify_participant` bindings. Publish both task workflows before accepting new competition entries.
 
 The bundled definitions are `customer-refund.v1.json` and `flow4gold-submission.v1.json`. Seeding those two definitions supports both workbench examples. Competition registration enters `REGISTERED` first, then records publication status through the same v1 adapter contract. See [examples](examples.md).
 
@@ -54,4 +54,4 @@ npm run demo
 
 Open http://localhost:5173. Vite proxies `/api` to the bridge at `127.0.0.1:5174`. `npm run visualizer` starts just the frontend; `npm run demo:api` starts just the bridge. Catalog operations and live cases require the bridge and n8n.
 
-The bridge and competition role selectors are a local workbench, not a public sign-in system. Refund payments are simulated; competition notifications and prize effects remain previews.
+The bridge and competition role selectors are a local workbench, not a public sign-in system. Refund payments are simulated. Competition state tasks persist real in-app updates; email delivery and prize fulfillment are not connected.

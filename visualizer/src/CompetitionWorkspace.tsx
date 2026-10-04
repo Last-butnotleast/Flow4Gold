@@ -17,6 +17,7 @@ import {
 } from './competition';
 import {
   competitionStats,
+  inboxState,
   contestants,
   entriesForContestant,
   nextStep,
@@ -425,11 +426,13 @@ function EntryHistory({ entry }: { entry: CompetitionEntry }) {
             <div>
               <strong>{pretty(event.type)}</strong>
               <small>
-                {typeof event.payload.actor === 'object' && event.payload.actor !== null
-                  ? String(
-                      (event.payload.actor as Record<string, unknown>).role ?? 'recorded event',
-                    )
-                  : String(event.payload.actor ?? 'recorded event')}
+                {event.taskInvocationId
+                  ? 'Task result'
+                  : typeof event.payload.actor === 'object' && event.payload.actor !== null
+                    ? String(
+                        (event.payload.actor as Record<string, unknown>).role ?? 'recorded event',
+                      )
+                    : String(event.payload.actor ?? 'recorded event')}
                 {event.createdAt
                   ? ` · ${new Date(event.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
                   : ''}
@@ -445,6 +448,41 @@ function EntryHistory({ entry }: { entry: CompetitionEntry }) {
         ))}
       </ol>
     </details>
+  );
+}
+
+function StoredInbox({ entry }: { entry: CompetitionEntry }) {
+  const inbox = inboxState(entry);
+  return (
+    <div className="competition-stored-inbox">
+      {inbox.current ? (
+        <article className="competition-delivered-message">
+          <span className="eyebrow">SAVED IN-APP MESSAGE</span>
+          <h3>{inbox.current.subject}</h3>
+          <p>{inbox.current.message}</p>
+        </article>
+      ) : inbox.preparing || inbox.pending ? (
+        <div className="competition-inbox-pending" role="status">
+          <span className="eyebrow">
+            {inbox.preparing ? 'SUBMISSION RECEIVED' : 'MESSAGE PENDING'}
+          </span>
+          <h3>{inbox.preparing ? 'Preparing your submission' : 'Preparing your update'}</h3>
+          <p>Your entry is saved. Its update will appear here shortly.</p>
+        </div>
+      ) : null}
+      {!!inbox.history.length && (
+        <details className="competition-notification-history">
+          <summary>Earlier messages · {inbox.history.length}</summary>
+          {inbox.history.map((message) => (
+            <article key={message.taskInvocationId}>
+              <strong>{message.subject}</strong>
+              <p>{message.message}</p>
+              <small>Recorded at step {message.sequence}</small>
+            </article>
+          ))}
+        </details>
+      )}
+    </div>
   );
 }
 
@@ -482,6 +520,8 @@ function SubmissionData({
             ) : (
               entry.workflowId
             )
+          ) : entry.state === 'REGISTERED' ? (
+            'Checking submitted details'
           ) : (
             'Waiting for publication'
           )}
@@ -822,6 +862,9 @@ export default function CompetitionWorkspace({
             </span>
           </header>
           <SubmissionData entry={adminEntry} />
+          <section className="competition-entry-inbox" aria-label="Contestant inbox">
+            <StoredInbox entry={adminEntry} />
+          </section>
           <EntryActions
             key={adminEntry.caseId}
             entry={adminEntry}
@@ -1002,8 +1045,17 @@ export default function CompetitionWorkspace({
           <section className="competition-inbox" aria-labelledby="inbox-heading">
             <div className="competition-dashboard-heading">
               <h2 id="inbox-heading">Inbox</h2>
-              <span>{next.actionable ? '1 action needed' : 'Up to date'}</span>
+              <span>
+                {personalEntry.state === 'REGISTERED'
+                  ? 'Preparing entry'
+                  : personalEntry.notification?.status === 'pending'
+                    ? 'Message pending'
+                    : next.actionable
+                      ? '1 action needed'
+                      : 'Up to date'}
+              </span>
             </div>
+            <StoredInbox entry={personalEntry} />
             {next.actionable ? (
               <button
                 className="competition-inbox-button"
@@ -1020,13 +1072,15 @@ export default function CompetitionWorkspace({
                   <ArrowRight size={16} />
                 </span>
               </button>
-            ) : (
+            ) : personalEntry.state !== 'REGISTERED' &&
+              !personalEntry.notification?.current &&
+              personalEntry.notification?.status !== 'pending' ? (
               <div className="competition-inbox-empty">
                 <CheckCircle2 size={23} />
                 <h3>{next.title}</h3>
                 <p>{next.description}</p>
               </div>
-            )}
+            ) : null}
           </section>
         </div>
       </div>

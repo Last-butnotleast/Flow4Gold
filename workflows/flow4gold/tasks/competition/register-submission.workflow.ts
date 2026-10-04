@@ -40,7 +40,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 @workflow({
     id: 'VJci6tpJ4SncQfbJ',
     name: 'Flow4Gold - Competition - Register Submission (Preview)',
-    active: false,
+    active: true,
     isArchived: false,
     settings: { saveManualExecutions: false, saveDataErrorExecution: 'none', executionOrder: 'v1' },
 })
@@ -202,8 +202,7 @@ function published(value) {
 }
 const workflow = published(request.submission.publishedWorkflow);
 return [{ json: { ...data, proposals: [
-  { type: 'SUBMISSION_RECEIVED', payload: { submission: data.evidence } },
-  { type: 'WORKFLOW_LINKED', payload: { workflow } },
+  { type: 'SUBMISSION_RECEIVED', payload: { submission: { ...data.evidence, publishedWorkflow: workflow } } },
 ] } }];`,
     };
 
@@ -219,7 +218,6 @@ return [{ json: { ...data, proposals: [
         jsCode: `const data = $input.first().json;
 return [{ json: { ...data, proposals: [
   { type: 'SUBMISSION_RECEIVED', payload: { submission: data.evidence } },
-  { type: 'PUBLICATION_PENDING', payload: {} },
 ] } }];`,
     };
 
@@ -257,7 +255,7 @@ return [{ json: { mode: 'preview', persisted: false, dispatched: false, machine:
     })
     IntegrationNotes = {
         content: `## Preview integration boundary
-Left to right: check caller → validate evidence → route response → return event proposals.
+Left to right: check caller → validate evidence → route response → return one registration event. The REGISTERED state task determines publication status.
 
 Manual execution uses fictional data. Caller identity flags and publication references are attestations only. No authentication, case persistence, PIN issuance, email or runtime dispatch happens here. The generic runtime owns state transitions and deduplication.`,
         height: 240,

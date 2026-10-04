@@ -11,8 +11,8 @@ test('refund and submission run interleaved in one event store with their own in
  const append=request=>{const result=plan(request,rows,definitions);assert.equal(result.action,'apply',result.result.reason);rows.push(result.eventRecord);return result;};
  const r=append({caseId:'refund',eventId:'r1',type:'RECEIVED',machine:refund.machine,machineVersion:1});
  const s=append({caseId:'entry',eventId:'s1',type:'SUBMISSION_RECEIVED',machine:submission.machine,machineVersion:submission.version});
- assert.equal(r.taskInvocation.task,'diagnose');assert.equal(s.result.currentState,'REGISTERED');assert.equal(s.taskInvocation,null);
- append({caseId:'entry',eventId:'s2',type:'PUBLICATION_PENDING'});
+ assert.equal(r.taskInvocation.task,'diagnose');assert.equal(s.result.currentState,'REGISTERED');assert.equal(s.taskInvocation.task,'prepare_submission');
+ append(callback(s.eventRecord,'prepare_submission','PUBLICATION_PENDING'));
  append({caseId:'entry',eventId:'s3',type:'WORKFLOW_LINKED'});
  append(callback(rows[0],'diagnose','ESCALATE',{reason:'Needs review'}));
  append({caseId:'entry',eventId:'s4',type:'NOT_SELECTED'});

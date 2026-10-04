@@ -4,12 +4,17 @@ import { parseMachine } from './machine';
 import type { CompetitionEntry } from './competition';
 import {
   competitionStats,
+  inboxState,
   contestants,
   entriesForContestant,
   nextStep,
   statusLabel,
 } from './competitionPresentation';
-const machine = parseMachine(definition);
+const taskDefinition = structuredClone(definition);
+Object.assign(taskDefinition.states.REGISTERED, { tasks: ['prepare_submission'] });
+Object.assign(taskDefinition.states.REGISTERED.on.WORKFLOW_LINKED, { taskResult: true });
+Object.assign(taskDefinition.states.REGISTERED.on.PUBLICATION_PENDING, { taskResult: true });
+const machine = parseMachine(taskDefinition);
 // Test fixtures describe server snapshots; production never seeds or advances entries locally.
 const fixture = (overrides: Partial<CompetitionEntry> = {}): CompetitionEntry => ({
   caseId: 'competition-test',
@@ -26,7 +31,6 @@ const fixture = (overrides: Partial<CompetitionEntry> = {}): CompetitionEntry =>
 describe('competition presentation of recorded snapshots', () => {
   it('covers every machine state and meaningful contestant actions', () => {
     const actionable = [
-      'REGISTERED',
       'WAITING_FOR_PUBLICATION',
       'NEEDS_INFORMATION',
       'INVITED',
@@ -127,5 +131,65 @@ describe('competition presentation of recorded snapshots', () => {
     ]);
     expect(entriesForContestant([first], 'unknown@example.invalid')).toEqual([]);
     expect(contestants([])).toEqual([]);
+  });
+});
+
+describe('persisted competition inbox', () => {
+  const message = {
+    taskInvocationId: 'prepared:notify_participant',
+    caseId: 'competition-test',
+    triggerEventId: 'prepared',
+    correlationId: 'competition-test',
+    machine: 'flow4gold-submission',
+    machineVersion: 1,
+    state: 'WAITING_FOR_PUBLICATION',
+    sequence: 2,
+    subject: 'Stored subject',
+    message: 'Actual task output, not a state fallback.',
+    channel: 'in_app' as const,
+  };
+  it('shows preparation without a manual publication step while the task runs', () => {
+    const preparing = fixture({
+      state: 'REGISTERED',
+      notification: { channel: 'in_app', status: 'not_expected', delivered: false, current: null },
+    });
+    expect(nextStep(preparing).title).toBe('Preparing your submission');
+    expect(nextStep(preparing).actionable).toBe(false);
+    expect(inboxState(preparing)).toMatchObject({ preparing: true, current: null, pending: false });
+  });
+  it('does not invent a message while the notification row is pending', () => {
+    const pending = fixture({
+      notification: { channel: 'in_app', status: 'pending', delivered: false, current: null },
+      notifications: [],
+    });
+    expect(inboxState(pending)).toEqual({
+      preparing: false,
+      pending: true,
+      current: null,
+      history: [],
+    });
+    expect(nextStep(pending).actionable).toBe(true);
+  });
+  it('renders actual stored content and keeps prior state messages separate', () => {
+    const older = {
+      ...message,
+      taskInvocationId: 'old:notify_participant',
+      triggerEventId: 'old',
+      sequence: 1,
+    };
+    const saved = fixture({
+      notification: { channel: 'in_app', status: 'delivered', delivered: true, current: message },
+      notifications: [older, message],
+    });
+    expect(inboxState(saved).current?.message).toBe('Actual task output, not a state fallback.');
+    expect(inboxState(saved).history).toEqual([older]);
+    const closed = fixture({
+      state: 'CLOSED',
+      outcome: 'NOT_SELECTED',
+      notification: { channel: 'in_app', status: 'not_expected', delivered: false, current: null },
+      notifications: [message],
+    });
+    expect(inboxState(closed).current).toBeNull();
+    expect(inboxState(closed).history).toEqual([message]);
   });
 });

@@ -38,7 +38,7 @@ Keep one row per machine/version and one editor default. New core cases select t
 
 [Schema CSV](task_bindings.csv). All columns are String except `machineVersion` (Number): `machine`, `machineVersion`, `task`, `workflowId`.
 
-Keep exactly one row per `(machine, machineVersion, task)`, pointing to a deployed workflow. Refund v1 needs `diagnose`, `request_approval`, `human_review`, `issue_refund`, and `verify_refund`. Submission v1 has no state tasks. Bindings are deployment configuration, separate from immutable definitions.
+Keep exactly one row per `(machine, machineVersion, task)`, pointing to a deployed workflow. Refund v1 needs `diagnose`, `request_approval`, `human_review`, `issue_refund`, and `verify_refund`. Submission v1 needs `prepare_submission` and `notify_participant`. Bindings are deployment configuration, separate from immutable definitions.
 
 ## `demo_orders` (refund example)
 
@@ -54,3 +54,23 @@ Keep exactly one row per `(machine, machineVersion, task)`, pointing to a deploy
 | `duplicateCharge` | Boolean |
 
 The local API lists/creates sample orders; diagnosis and review read them through native Data Table nodes. References must be unique, amounts positive with at most two decimal places, and currency three uppercase letters. Accepted proposals retain their evidence, so later catalog changes do not rewrite history.
+
+## `competition_notifications` (competition example)
+
+[Schema CSV](competition_notifications.csv). Task output for the in-app inbox; it is not a second domain event stream. The notification task upserts by `taskInvocationId`, so a sequential retry updates the same message. No email is sent.
+
+| Column | Type | Purpose |
+| --- | --- | --- |
+| `taskInvocationId` | String | Stable task delivery key |
+| `caseId` | String | Entry receiving the update |
+| `triggerEventId` | String | Accepted state-entry event |
+| `correlationId` | String | Event-chain identity |
+| `machine` | String | Pinned machine identity |
+| `machineVersion` | Number | Pinned definition version |
+| `state` | String | State entered by the triggering event |
+| `sequence` | Number | Triggering event sequence, used for message order |
+| `subject` | String | Message heading |
+| `message` | String | Plain-text message from recorded evidence |
+| `channel` | String | `in_app` |
+
+The frontend treats a message as current only when its invocation, trigger, case, correlation, machine/version, state and sequence match the current entry. Late writes from older states stay in history. Terminal outcomes are read from core events; no task runs on `CLOSED`.

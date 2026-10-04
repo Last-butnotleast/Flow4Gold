@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 const machineId = 'flow4gold-submission';
 const eventTableId = 'TjuB58skTvPRCwB3';
+const defaultNotificationTableId = 'GgWLi8jtrmWP9gpi';
 const casePattern = /^competition-[a-f0-9]{32}$/;
 const contestantActions = new Set([
   'WORKFLOW_LINKED',
@@ -223,11 +224,91 @@ export function actionRequest(caseId, entry, body, now = Date.now()) {
   };
 }
 
+/** Match stored messages to their state-entry events, not their asynchronous write time. */
+export function projectNotifications(caseId, definition, currentState, stream, storedRows) {
+  const entries = new Map();
+  let state = definition.initial;
+  for (const event of stream) {
+    const edge =
+      definition.states[state]?.on?.[event.type] ?? definition.states[state]?.decide?.[event.type];
+    if (!edge) continue;
+    state = edge.target;
+    if (definition.states[state]?.tasks?.includes('notify_participant'))
+      entries.set(event.eventId, { event, state });
+  }
+  const matches = storedRows.filter((row) => {
+    const entry = entries.get(row.triggerEventId);
+    return (
+      entry &&
+      row.caseId === caseId &&
+      row.machine === definition.machine &&
+      row.machineVersion === definition.version &&
+      row.correlationId === entry.event.correlationId &&
+      row.state === entry.state &&
+      row.sequence === entry.event.sequence &&
+      row.taskInvocationId === entry.event.eventId + ':notify_participant' &&
+      row.channel === 'in_app' &&
+      typeof row.subject === 'string' &&
+      row.subject.trim() &&
+      typeof row.message === 'string' &&
+      row.message.trim()
+    );
+  });
+  // Multiple competing rows for one invocation are not a confirmed delivery.
+  const counts = new Map();
+  for (const row of matches)
+    counts.set(row.taskInvocationId, (counts.get(row.taskInvocationId) ?? 0) + 1);
+  const notifications = matches
+    .filter((row) => counts.get(row.taskInvocationId) === 1)
+    .sort((a, b) => a.sequence - b.sequence)
+    .map((row) =>
+      Object.fromEntries(
+        [
+          'taskInvocationId',
+          'caseId',
+          'triggerEventId',
+          'correlationId',
+          'machine',
+          'machineVersion',
+          'state',
+          'sequence',
+          'subject',
+          'message',
+          'channel',
+          'createdAt',
+        ]
+          .filter((key) => row[key] !== undefined)
+          .map((key) => [key, row[key]]),
+      ),
+    );
+  const latest = stream.at(-1);
+  const expectsMessage =
+    definition.states[currentState]?.tasks?.includes('notify_participant') === true;
+  const current = expectsMessage
+    ? (notifications.find(
+        (row) =>
+          row.triggerEventId === latest?.eventId &&
+          row.state === currentState &&
+          row.sequence === latest?.sequence,
+      ) ?? null)
+    : null;
+  return {
+    notifications,
+    notification: {
+      channel: 'in_app',
+      status: current ? 'delivered' : expectsMessage ? 'pending' : 'not_expected',
+      delivered: !!current,
+      current,
+    },
+  };
+}
+
 export function createCompetitionService({
   host,
   apiKey,
   token,
   fetchImpl = fetch,
+  notificationTableId = defaultNotificationTableId,
   catalog,
   inspect,
 }) {
@@ -275,7 +356,35 @@ export function createCompetitionService({
     } while (cursor);
     return found.sort((a, b) => a.sequence - b.sequence);
   }
-  async function project(caseId, stream, stored) {
+  async function notificationRows(caseId) {
+    const found = [];
+    let cursor;
+    do {
+      const filters = [{ columnName: 'machine', condition: 'eq', value: machineId }];
+      if (caseId) filters.push({ columnName: 'caseId', condition: 'eq', value: caseId });
+      const query = new URLSearchParams({
+        filter: JSON.stringify({ type: 'and', filters }),
+        limit: '100',
+      });
+      if (cursor) query.set('cursor', cursor);
+      const response = await fetchImpl(
+        new URL(`/api/v1/data-tables/${notificationTableId}/rows?${query}`, host),
+        { headers: { 'X-N8N-API-KEY': apiKey }, signal: AbortSignal.timeout(15000) },
+      );
+      if (!response.ok) error('Could not load competition inbox messages.', 502);
+      const page = await response.json();
+      if (
+        !Array.isArray(page.data) ||
+        page.data.some((row) => row.machine !== machineId || (caseId && row.caseId !== caseId))
+      )
+        error('Unexpected competition notification response.', 502);
+      found.push(...page.data.filter((row) => casePattern.test(row.caseId)));
+      cursor = page.nextCursor;
+      if (found.length > 20000) error('Competition inbox limit exceeded.', 502);
+    } while (cursor);
+    return found;
+  }
+  async function project(caseId, stream, stored, messages) {
     for (let attempt = 0; attempt < 3; attempt++) {
       if (!stream.length) error('Competition entry not found.', 404);
       const fingerprint = JSON.stringify(stream),
@@ -329,25 +438,30 @@ export function createCompetitionService({
         ...(workflow ? { workflow, workflowId: workflow.id, workflowUrl: workflow.url } : {}),
         reference: caseId,
         identity: 'local-workbench',
-        notification: { delivered: false },
+        ...projectNotifications(caseId, definition, result.currentState, stream, messages),
       };
     }
     error('This entry is changing. Refresh and try again.', 503);
   }
   async function get(caseId) {
     if (!casePattern.test(caseId)) error('Competition entry not found.', 404);
-    const [stream, stored] = await Promise.all([rows(caseId), catalog()]);
-    return project(caseId, stream, stored);
+    const [stream, stored, messages] = await Promise.all([
+      rows(caseId),
+      catalog(),
+      notificationRows(caseId),
+    ]);
+    return project(caseId, stream, stored, messages);
   }
   async function list() {
-    const [stream, stored] = await Promise.all([rows(), catalog()]);
+    const [stream, stored, messages] = await Promise.all([rows(), catalog(), notificationRows()]);
     const grouped = new Map();
     for (const event of stream) {
       if (!grouped.has(event.caseId)) grouped.set(event.caseId, []);
       grouped.get(event.caseId).push(event);
     }
     const entries = [];
-    for (const [caseId, events] of grouped) entries.push(await project(caseId, events, stored));
+    for (const [caseId, events] of grouped)
+      entries.push(await project(caseId, events, stored, messages));
     return entries.sort(
       (a, b) =>
         (b.events[0].createdAt ?? '').localeCompare(a.events[0].createdAt ?? '') ||
@@ -425,8 +539,10 @@ export function createCompetitionService({
         // Do not reject a retry because its accepted event already advanced the state.
         if (!alreadyRecorded) {
           const state = entry.machine.states[entry.state];
-          if (!state?.on?.[body.action] && !state?.decide?.[body.action])
-            error(`${body.action} is not available from ${entry.state}.`, 409);
+          const edge = state?.on?.[body.action] ?? state?.decide?.[body.action];
+          if (!edge) error(`${body.action} is not available from ${entry.state}.`, 409);
+          if (edge.taskResult === true)
+            error(`${body.action} is produced by the state task, not a manual action.`, 409);
           if (['FINALIST_SELECTED', 'WINNER_SELECTED'].includes(body.action)) {
             const limit = body.action === 'FINALIST_SELECTED' ? 3 : 1;
             const entries = await list();

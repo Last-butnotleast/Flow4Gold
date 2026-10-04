@@ -49,7 +49,7 @@ Task names must be nonempty, have no surrounding whitespace, and contain no `:`.
 
 Only the invocation fields shown above reach the task; workflow selection and other dispatcher metadata remain inside the core.
 
-`input` is the entering event's payload. Tasks may read history or domain tables for additional context. A callback to the core uses:
+`input` is the entering event's payload. Tasks may read history or domain tables for additional context. Tasks that produce a domain outcome call the core with a result event. A side-effect-only task, such as writing an in-app notification, can finish without advancing the machine; it must not emit a self-transition that would dispatch itself again. A result callback uses:
 
 ```json
 {

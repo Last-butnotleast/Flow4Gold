@@ -47,10 +47,10 @@ const fixture = workflow => run(workflow, 'Synthetic Request');
 const prepare = (workflow, request = fixture(workflow)) => run(workflow, 'Prepare Event Proposals', [request]);
 const published = { id: '12345', url: 'https://n8n.io/workflows/12345-demo/', verificationReference: 'organizer-check-1' };
 
-test('registration retains pending publication and yields ordered deterministic proposals only', () => {
+test('registration yields one deterministic event and defers publication routing to the state task', () => {
   const result = prepare(registration);
-  assert.deepEqual(result.events.map(event => event.type), ['SUBMISSION_RECEIVED', 'PUBLICATION_PENDING']);
-  assert.equal(result.events[1].causationId, result.events[0].eventId);
+  assert.deepEqual(result.events.map(event => event.type), ['SUBMISSION_RECEIVED']);
+  assert.equal(result.events[0].payload.submission.publishedWorkflow, undefined);
   assert.equal(result.persisted, false);
   assert.equal(result.dispatched, false);
   assert.equal(result.integration.runtime, 'unbound');
@@ -63,7 +63,10 @@ test('registration retains pending publication and yields ordered deterministic 
 test('published registration and contestant follow-up require matching publication evidence', () => {
   const request = fixture(registration);
   request.submission.publishedWorkflow = published;
-  assert.equal(prepare(registration, request).events[1].type, 'WORKFLOW_LINKED');
+  const registered = prepare(registration, request);
+  assert.equal(registered.events.length, 1);
+  assert.equal(registered.events[0].type, 'SUBMISSION_RECEIVED');
+  assert.deepEqual(registered.events[0].payload.submission.publishedWorkflow, published);
   for (const value of [{ ...published, url: 'https://n8n.io/workflows/999/' }, { ...published, verificationReference: '' }, { ...published, id: 'https://evil.invalid/' }, { ...published, url: 'https://n8n.io.evil.invalid/workflows/12345/' }]) {
     request.submission.publishedWorkflow = value;
     assert.throws(() => prepare(registration, request));
@@ -95,7 +98,7 @@ test('unbound execution, untrusted actor, mixed identity and batches fail closed
       assert.throws(() => prepare(workflow, { ...fixture(workflow), ...patch }));
     }
     assert.throws(() => run(workflow, 'Prepare Event Proposals', [fixture(workflow), fixture(workflow)]));
-    assert.equal(workflow.active, false);
+    // Publishing makes the adapter callable; it still performs no storage or outbound actions.
     assert.equal(workflow.nodes.some(node => /webhook|httpRequest|executeWorkflow$|dataTable/.test(node.type)), false);
   }
   assert.throws(() => prepare(response, { ...fixture(response), caseSnapshot: { caseId: 'demo-entry-alex', contestantId: 'different-person' } }));

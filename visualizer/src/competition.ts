@@ -2,6 +2,20 @@ import { api, type LiveCase } from './live';
 import { parseMachine } from './machine';
 
 export type CompetitionRole = 'contestant' | 'admin';
+export interface CompetitionNotification {
+  taskInvocationId: string;
+  caseId: string;
+  triggerEventId: string;
+  correlationId: string;
+  machine: string;
+  machineVersion: number;
+  state: string;
+  sequence: number;
+  subject: string;
+  message: string;
+  channel: 'in_app';
+  createdAt?: string;
+}
 export interface CompetitionEntry extends LiveCase {
   title: string;
   name: string;
@@ -10,6 +24,13 @@ export interface CompetitionEntry extends LiveCase {
   videoUrl: string;
   workflowId?: string;
   workflowUrl?: string;
+  notifications?: CompetitionNotification[];
+  notification?: {
+    channel: 'in_app';
+    status: 'delivered' | 'pending' | 'not_expected';
+    delivered: boolean;
+    current: CompetitionNotification | null;
+  };
 }
 export interface EntryInput {
   title: string;
@@ -61,11 +82,14 @@ const registrationEvents = new Set(['SUBMISSION_RECEIVED', 'PUBLICATION_PENDING'
 /** Display choices from the server's pinned definition; the server decides whether to accept them. */
 export function allowedEvents(entry: CompetitionEntry, role: CompetitionRole): string[] {
   const state = entry.machine.states[entry.state];
-  return Object.keys({ ...state?.on, ...state?.decide }).filter(
-    (event) =>
-      !registrationEvents.has(event) &&
-      (contestantEvents.has(event) ? 'contestant' : 'admin') === role,
-  );
+  return Object.entries({ ...state?.on, ...state?.decide })
+    .filter(
+      ([event, edge]) =>
+        edge.taskResult !== true &&
+        !registrationEvents.has(event) &&
+        (contestantEvents.has(event) ? 'contestant' : 'admin') === role,
+    )
+    .map(([event]) => event);
 }
 export function decodeEntry(value: CompetitionEntry): CompetitionEntry {
   if (

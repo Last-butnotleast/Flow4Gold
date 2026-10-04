@@ -36,7 +36,7 @@ This is a base setup with demo integrations. Events must be submitted sequential
 The repository contains two machine JSONs:
 
 - [Customer refund v1](machines/customer-refund.v1.json): bounded Jev diagnosis, Discord approval/review, and simulated refund execution.
-- [Competition submission v1](machines/flow4gold-submission.v1.json): an external-event lifecycle for publication, review, finalist selection, and prize acceptance.
+- [Competition submission v1](machines/flow4gold-submission.v1.json): external human events plus bound preparation and in-app notification tasks for publication, review, finalist selection, and prize acceptance.
 
 The local frontend includes payment support, sample orders, a machine editor, and contestant/admin views. The competition workbench, adapters and reference definition all use submission **v1**. See [example behavior and integration limits](docs/examples.md).
 
