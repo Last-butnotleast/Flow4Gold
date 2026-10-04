@@ -25,7 +25,8 @@ if (process.argv[1]?.endsWith('/build-diagnosis.mjs')) {
     const parser = new TypeScriptParser(), builder = new WorkflowBuilder();
     const actual = builder.build(await parser.parseFile(diagnosisPath));
     const expected = builder.build(await parser.parseCode(source));
-    for (const key of ['id','name','active','nodes','connections']) if (!isDeepStrictEqual(actual[key],expected[key])) throw new Error(`Generated diagnosis differs (${key}); run npm run build.`);
+    // Publication state is controlled by deployment, not generated content.
+    for (const key of ['id','name','nodes','connections']) if (!isDeepStrictEqual(actual[key],expected[key])) throw new Error(`Generated diagnosis differs (${key}); run npm run build.`);
     console.log('Diagnosis matches source, machine choices, and sample data.');
   } else { await writeFile(diagnosisPath,source); console.log(`Built ${diagnosisPath}`); }
 }

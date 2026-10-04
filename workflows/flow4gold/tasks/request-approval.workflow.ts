@@ -8,7 +8,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // ──────────────────────────────────────────────────────────────────
 // Property name                    Node type (short)         Flags
 // ReceiveTask                        executeWorkflowTrigger
-// ReadCaseEvents                     dataTable
+// ReadCaseEvents                     dataTable                  [alwaysOutput]
 // PrepareApproval                    code
 // PostToDiscord                      discord                    [creds]
 // WaitForDecision                    wait
@@ -19,11 +19,12 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // ROUTING MAP
 // ──────────────────────────────────────────────────────────────────
 // ReceiveTask
-//    → ReadCaseEvents → PrepareApproval
-//      → PostToDiscord
-//        → WaitForDecision
-//          → BuildApprovalResult
-//            → ReturnDomainEvent
+//    → ReadCaseEvents
+//      → PrepareApproval
+//        → PostToDiscord
+//          → WaitForDecision
+//            → BuildApprovalResult
+//              → ReturnDomainEvent
 // </workflow-map>
 
 // =====================================================================
@@ -33,9 +34,8 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 @workflow({
     id: 'cL04Sd1GfOlJk0Te',
     name: 'Flow4Gold - Request Approval',
-    active: true,
+    active: false,
     isArchived: false,
-    projectId: '8d5DQtHZkgLco5Yr',
     settings: { executionOrder: 'v1' },
 })
 export class Flow4goldRequestApprovalWorkflow {
@@ -63,10 +63,23 @@ export class Flow4goldRequestApprovalWorkflow {
         alwaysOutputData: true,
     })
     ReadCaseEvents = {
-        resource: 'row', operation: 'get',
-        dataTableId: { __rl: true, value: 'TjuB58skTvPRCwB3', mode: 'id' },
+        resource: 'row',
+        operation: 'get',
+        dataTableId: {
+            __rl: true,
+            value: 'TjuB58skTvPRCwB3',
+            mode: 'id',
+        },
         matchType: 'allConditions',
-        filters: { conditions: [{ keyName: 'caseId', condition: 'eq', keyValue: '={{ $json.caseId }}' }] },
+        filters: {
+            conditions: [
+                {
+                    keyName: 'caseId',
+                    condition: 'eq',
+                    keyValue: '={{ $json.caseId }}',
+                },
+            ],
+        },
         returnAll: true,
     };
 

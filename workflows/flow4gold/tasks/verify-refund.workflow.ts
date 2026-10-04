@@ -29,9 +29,8 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 @workflow({
     id: '9LZC7MMcWWLI4FN9',
     name: 'Flow4Gold - Verify Refund (Simulated)',
-    active: true,
+    active: false,
     isArchived: false,
-    projectId: '8d5DQtHZkgLco5Yr',
     settings: { executionOrder: 'v1' },
 })
 export class Flow4goldVerifyRefundSimulatedWorkflow {

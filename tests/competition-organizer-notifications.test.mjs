@@ -41,6 +41,7 @@ test('organizer routes all action families and preserves deterministic event pro
    assert.ok(visited.includes(branch));
    assert.equal(json.events[0].type,action);
    assert.equal(json.events[0].eventId,JSON.stringify([request.caseId,request.requestId,action]));
+   assert.equal(Object.hasOwn(json.events[0], 'causationId'), false, 'An independent organizer request is not an event cause');
    assert.equal(json.dispatched,false); assert.equal(json.persisted,false);
    assert.deepEqual(execute(organizer,request).json,json);
  }

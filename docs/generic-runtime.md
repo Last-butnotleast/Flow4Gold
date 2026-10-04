@@ -2,7 +2,7 @@
 
 ## Phase 1 — local contract and executable tests
 
-This branch contains the breaking local redesign. It has **not been published to n8n** and the remote tables have **not been reset**. Do not publish individual redesigned workflows against the old catalog and bindings. The existing live deployment is the pre-reset demo.
+The generic runtime is now deployed to n8n with fresh application tables. Phase 1 established the local contract; phase 2 completed the coordinated reset and live verification on 4 October 2026. The visualizer is being developed separately.
 
 The baseline source snapshot is Git tag `baseline-demo` (commit `5d2d9fa`). This is a source backup, not a backup of remote executions or Data Table rows. Parallel competition task development shares the current branch; runtime commits must explicitly stage only their owned files.
 
@@ -22,9 +22,19 @@ A task-result link is a consistency check, not producer authentication. Callers 
 
 ## Phase 2 — coordinated fresh deployment
 
-Before deployment, coordinate with the competition-task work so its unpublished changes are preserved. Stop old intake and pending task callbacks before resetting affected data; old form executions must not append into the fresh catalog. Replace old event history and machine catalog with fresh seeds; recreate or update bindings with the new scoped columns. Retain credentials and unrelated project data. The old source is available in Git; no runtime compatibility migration is intended.
+Completed on 4 October 2026:
 
-Publish the coherent core, gateways, and task set. Prove fresh refund and Flow4Gold submission cases in the same n8n event table, including explicit version selection, read-only replay, duplicate delivery, and rejected illegal transitions. Do not submit human decisions on behalf of the user. This phase remains pending after the local checkpoint.
+- Stopped the seven old runtime/refund/gateway workflows and five pending approval executions before changing tables.
+- Cleared old case events, definitions and bindings while preserving table IDs, credentials and all three sample orders.
+- Seeded fresh refund v1, submission v1 and a submission v2 comparison definition. V1 enters REGISTERED; v2 enters WAITING_FOR_PUBLICATION on its first event.
+- Added machine/version columns to task bindings and seeded five refund v1 bindings.
+- Published core, refund tasks, customer gateway, and the new private competition gateway. Activated the existing registration, contestant and organizer adapters so n8n can call them.
+- Fixed the organizer adapter's request-ID causation bug: independent organizer actions omit causation rather than refer to an event that does not exist.
+- Removed the obsolete fixed-case test workflows. A temporary authenticated test driver was removed after verification.
+
+The competition gateway calls the existing business adapters and sends their proposed events to the same core sequentially. Its actual persistence result is separate from notification/PIN/effect previews. It is an internal Execute Workflow entry point, not a browser endpoint. See [gateway contract](competition-gateway.md).
+
+Seven live checks passed: registration, identical retry without writes, contestant publication linking, illegal-event rejection without writes, organizer closure, simultaneous pinned versions, and real asynchronous refund diagnosis. The three final fixtures share the same event table; their details are recorded in [the live proof](generic-runtime-proof.json). Refund stopped at WAITING_CUSTOMER after Jev requested information; no human decision was submitted and no payment moved. Abandoned test fixtures were removed.
 
 ## Phase 3 — demo selection and inspection
 

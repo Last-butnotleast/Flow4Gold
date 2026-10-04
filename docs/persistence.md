@@ -1,6 +1,6 @@
 # Event stream persistence
 
-See [deployment checkpoints](generic-runtime.md) for the local redesign and pending remote reset.
+See [deployment checkpoints](generic-runtime.md) for the deployed generic runtime and completed fresh-data reset.
 
 One `case_event_stream` table stores events for every machine and version. A case selects an immutable definition when it starts:
 

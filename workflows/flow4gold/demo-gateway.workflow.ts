@@ -27,7 +27,6 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
     name: 'Flow4Gold - Demo Gateway',
     active: false,
     isArchived: false,
-    projectId: '8d5DQtHZkgLco5Yr',
     settings: { executionOrder: 'v1' },
 })
 export class Flow4goldDemoGatewayWorkflow {

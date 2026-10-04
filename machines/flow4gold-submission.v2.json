@@ -1,0 +1,165 @@
+{
+  "machine": "flow4gold-submission",
+  "version": 2,
+  "initial": "OPEN",
+  "description": "Runtime version-comparison demo: registration enters publication waiting directly. Uses the same external-event lifecycle; competition intake adapters currently target version 1.",
+  "states": {
+    "OPEN": {
+      "description": "An entry has not yet been registered. The contestant submits the signup form and workflow video; the template may still be awaiting publication.",
+      "on": {
+        "SUBMISSION_RECEIVED": {
+          "target": "WAITING_FOR_PUBLICATION",
+          "description": "The registration adapter records the submitted entry and its PIN. A published workflow ID is not required at registration. Ticket eligibility and submission timing are verified outside this graph."
+        }
+      }
+    },
+    "REGISTERED": {
+      "description": "Signup and video are recorded; the contestant saves the PIN. The organizer determines whether a published template can already be linked.",
+      "on": {
+        "PUBLICATION_PENDING": {
+          "target": "WAITING_FOR_PUBLICATION",
+          "description": "The contestant has submitted a template to creators.n8n.io, but publication and the workflow ID are still pending."
+        },
+        "WORKFLOW_LINKED": {
+          "target": "ADMIN_REVIEW",
+          "description": "The organizer links a verified published workflow ID to this entry using the saved registration reference."
+        },
+        "WITHDRAWN": {
+          "target": "CLOSED",
+          "outcome": "WITHDRAWN"
+        }
+      }
+    },
+    "WAITING_FOR_PUBLICATION": {
+      "description": "Registration remains recorded while n8n reviews the template. After publication, the contestant emails the workflow ID to flow4gold@flowgrammer.com; the organizer matches it to the entry/PIN.",
+      "on": {
+        "WORKFLOW_LINKED": {
+          "target": "ADMIN_REVIEW",
+          "description": "The organizer verifies the published workflow and records its ID against the matching entry. Publication is separate from contest acceptance."
+        },
+        "WITHDRAWN": {
+          "target": "CLOSED",
+          "outcome": "WITHDRAWN"
+        }
+      }
+    },
+    "ADMIN_REVIEW": {
+      "description": "The organizer checks the linked template, video and eligibility; the human jury reviews the entry. Missing evidence can be requested without discarding registration.",
+      "on": {
+        "INFORMATION_REQUESTED": {
+          "target": "NEEDS_INFORMATION",
+          "description": "The organizer records a specific question or missing evidence for the contestant."
+        },
+        "FINALIST_SELECTED": {
+          "target": "INVITED",
+          "description": "The human jury selects this entry and the organizer records its finalist invitation. The organizer must enforce the competition-wide limit of three finalists outside this per-entry machine."
+        },
+        "NOT_SELECTED": {
+          "target": "CLOSED",
+          "outcome": "NOT_SELECTED",
+          "description": "The human jury records that this entry was not selected as a finalist."
+        },
+        "ENTRY_DISQUALIFIED": {
+          "target": "CLOSED",
+          "outcome": "DISQUALIFIED",
+          "description": "The organizer records an eligibility failure and its supporting reason."
+        },
+        "WITHDRAWN": {
+          "target": "CLOSED",
+          "outcome": "WITHDRAWN"
+        }
+      }
+    },
+    "NEEDS_INFORMATION": {
+      "description": "The contestant supplies the requested clarification. The adapter retains corrected video, workflow and eligibility evidence with the existing entry.",
+      "on": {
+        "INFORMATION_PROVIDED": {
+          "target": "ADMIN_REVIEW",
+          "description": "The contestant's response and any updated evidence are recorded for organizer review; responding does not itself establish eligibility."
+        },
+        "WITHDRAWN": {
+          "target": "CLOSED",
+          "outcome": "WITHDRAWN"
+        }
+      }
+    },
+    "INVITED": {
+      "description": "The selected finalist has been invited to participate. Recording acceptance or decline is a proposed organizer demo step.",
+      "on": {
+        "INVITATION_ACCEPTED": {
+          "target": "CONFIRMED"
+        },
+        "INVITATION_DECLINED": {
+          "target": "CLOSED",
+          "outcome": "DECLINED"
+        },
+        "WITHDRAWN": {
+          "target": "CLOSED",
+          "outcome": "WITHDRAWN"
+        }
+      }
+    },
+    "CONFIRMED": {
+      "description": "The finalist has confirmed participation. The organizer records attendance for live judging; no date or absence is inferred automatically.",
+      "on": {
+        "CHECKED_IN": {
+          "target": "JUDGING",
+          "description": "The organizer records that the finalist is present and ready for the live competition."
+        },
+        "NO_SHOW_RECORDED": {
+          "target": "CLOSED",
+          "outcome": "NO_SHOW",
+          "description": "The organizer explicitly confirms nonattendance; this proposed demo outcome is not emitted by a timer."
+        },
+        "WITHDRAWN": {
+          "target": "CLOSED",
+          "outcome": "WITHDRAWN"
+        }
+      }
+    },
+    "JUDGING": {
+      "description": "The finalist participates in live judging. Human judges determine the result; AI has no authority to select finalists or winners.",
+      "on": {
+        "WINNER_SELECTED": {
+          "target": "AWAITING_PRIZE_ACCEPTANCE",
+          "description": "The organizer records the human jury's winner decision. Competition-wide winner uniqueness must be checked outside this per-entry machine."
+        },
+        "RUNNER_UP_SELECTED": {
+          "target": "CLOSED",
+          "outcome": "RUNNER_UP",
+          "description": "The organizer records that this finalist did not win."
+        },
+        "WITHDRAWN": {
+          "target": "CLOSED",
+          "outcome": "WITHDRAWN"
+        }
+      }
+    },
+    "AWAITING_PRIZE_ACCEPTANCE": {
+      "description": "The winner has been selected and the organizer awaits prize acceptance. Acceptance does not assert that delivery or payment has occurred.",
+      "on": {
+        "PRIZE_ACCEPTED": {
+          "target": "CLOSED",
+          "outcome": "WINNER"
+        },
+        "PRIZE_DECLINED": {
+          "target": "CLOSED",
+          "outcome": "PRIZE_UNCLAIMED"
+        },
+        "PRIZE_ACCEPTANCE_EXPIRED": {
+          "target": "CLOSED",
+          "outcome": "PRIZE_UNCLAIMED",
+          "description": "The organizer explicitly records expiry after checking the applicable acceptance deadline and any response. This graph has no automatic timer and does not select a replacement winner."
+        },
+        "WITHDRAWN": {
+          "target": "CLOSED",
+          "outcome": "WITHDRAWN"
+        }
+      }
+    },
+    "CLOSED": {
+      "description": "The entry's final outcome is recorded. Other entries and competition-wide administration remain separate.",
+      "final": true
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # Asynchronous state tasks
 
-See [deployment checkpoints](generic-runtime.md) before publishing the local redesign.
+See [deployment checkpoints](generic-runtime.md) for the completed deployment and live verification.
 
 A machine names a task, such as `INVESTIGATING.tasks = ["diagnose"]`. `task_bindings` resolves `(machine, machineVersion, task)` to a workflow ID. Different machines and versions may reuse the same task name with different implementations. Definitions contain no n8n workflow IDs.
 

@@ -1,0 +1,51 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {compiledWorkflow} from '../scripts/build-core.mjs';
+const workflow=await compiledWorkflow('workflows/flow4gold/competition-gateway.workflow.ts');
+const envelope=(adapter='register')=>({adapter,input:{caseId:'entry',requestId:'request',correlationId:'entry',actor:{id:'person',role:'contestant',verified:true,caseId:'entry'}}});
+const event=(index)=>({caseId:'entry',eventId:`event-${index}`,type:index===1?'SUBMISSION_RECEIVED':'PUBLICATION_PENDING',payload:{actorId:'person'},machine:'flow4gold-submission',machineVersion:1,correlationId:'entry',...(index===2?{causationId:'event-1'}:{})});
+const preview=(count=2)=>({mode:'preview',persisted:false,events:[event(1),event(2)].slice(0,count),effects:[{type:'issue_and_store_pin',status:'unbound'}]});
+function run(input,adapter=preview(),statuses=['applied','applied']){
+ let name='Trusted Internal Request';let data=[input];const prior={};const calls=[];
+ while(name){
+  const node=workflow.nodes.find(node=>node.name===name);let port=0;
+  if(node.type.endsWith('.code'))data=new Function('$input','$',node.parameters.jsCode)({all:()=>data.map(json=>({json})),first:()=>({json:data[0]})},key=>({first:()=>({json:prior[key][0]})})).map(item=>item.json);
+  if(node.type.endsWith('.executeWorkflow')){
+   assert.equal(node.parameters.options.waitForSubWorkflow,true);
+   calls.push({name,input:structuredClone(data[0])});
+   if(name==='Run Preview Adapter')data=[adapter];
+   else{const status=statuses.shift();data=[typeof status==='string'?{status,caseId:data[0].caseId,eventId:data[0].eventId,currentState:'TEST'}:status];}
+  }
+  if(node.type.endsWith('.if'))port=data[0].continueBatch?0:1;
+  prior[name]=structuredClone(data);
+  const links=workflow.connections[name]?.main?.[port]??[];assert.ok(links.length<=1);name=links[0]?.node;
+ }
+ return {result:data[0],calls};
+}
+test('private fixed adapter gateway persists ordered registration events with actual results',()=>{
+ const {result,calls}=run(envelope());
+ assert.deepEqual(calls.map(call=>call.name),['Run Preview Adapter','Apply First Event','Apply Second Event']);
+ assert.equal(calls[0].input.mode,'preview');assert.equal(calls[0].input.machine,'flow4gold-submission');assert.equal(calls[0].input.machineVersion,1);
+ assert.deepEqual(calls.slice(1).map(call=>call.input),preview().events);
+ assert.equal(result.status,'completed');assert.equal(result.persisted,true);assert.equal(result.appliedCount,2);assert.equal(result.notification.delivered,false);
+ assert.deepEqual(result.effects,preview().effects);assert.equal(workflow.nodes.some(node=>/webhook|httpRequest|email|dataTable/.test(node.type)),false);
+ assert.equal(workflow.active,false);
+});
+test('first rejection stops batch; midbatch rejection returns partial and retries preserve IDs',()=>{
+ const first=run(envelope(),preview(),['rejected']);assert.equal(first.result.status,'rejected');assert.equal(first.calls.length,2);assert.deepEqual(first.result.unattemptedEventIds,['event-2']);assert.equal(first.result.persisted,false);
+ const partial=run(envelope(),preview(),['applied','rejected']);assert.equal(partial.result.status,'partial');assert.equal(partial.result.partiallyPersisted,true);assert.equal(partial.result.persisted,false);assert.equal(partial.result.appliedCount,1);
+ const retry=run(envelope(),preview(),['duplicate','applied']);assert.equal(retry.result.persisted,true);assert.equal(retry.result.duplicateCount,1);assert.deepEqual(retry.calls.slice(1).map(call=>call.input.eventId),['event-1','event-2']);
+ const repeated=run(envelope(),preview(),['duplicate','duplicate']);assert.equal(repeated.result.appliedCount,0);assert.equal(repeated.result.persisted,true);
+});
+test('core errors or mismatched results are uncertain and never reported as persisted',()=>{
+ for(const response of [{error:'execution failed'}, {status:'applied',caseId:'other',eventId:'event-1'}]){
+  const {result,calls}=run(envelope(),preview(),[response]);assert.equal(result.status,'uncertain');assert.equal(result.persisted,false);assert.equal(calls.length,2);
+ }
+ const second=run(envelope(),preview(),['applied',{error:'lost response'}]);assert.equal(second.result.status,'uncertain');assert.equal(second.result.partiallyPersisted,true);assert.equal(second.result.persisted,false);
+ for(const name of ['Apply First Event','Apply Second Event'])assert.equal(workflow.nodes.find(node=>node.name===name).onError,'continueRegularOutput');
+});
+test('contestant and organizer dispatch one event only; notification or arbitrary IDs cannot be selected',()=>{
+ for(const adapter of ['contestant','organizer']){const result=run(envelope(adapter),preview(1),['applied']);assert.equal(result.calls.length,2);assert.equal(result.result.persisted,true);}
+ for(const input of [envelope('notify'),envelope('constructor'),{...envelope(),workflowId:'arbitrary'},{...envelope(),input:{...envelope().input,machine:'customer-refund'}}])assert.throws(()=>run(input));
+ for(const bad of [{...preview(),persisted:true},preview(1),{...preview(),events:[event(1),{...event(2),causationId:'wrong'}]},{...preview(),events:[event(1),{...event(2),caseId:'other'}]}])assert.throws(()=>run(envelope(),bad));
+});

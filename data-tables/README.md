@@ -1,6 +1,6 @@
 # Event store
 
-**Local redesign:** see [deployment checkpoints](../docs/generic-runtime.md). Remote schemas/data below still need the coordinated phase-2 reset; the updated binding CSV describes the target schema.
+**Fresh deployment:** the event, definition and binding tables were reset for the generic runtime on 4 October 2026. IDs and sample orders were preserved. See [deployment evidence](../docs/generic-runtime.md).
 
 `case_event_stream` is the authoritative store. The runtime rebuilds each case by replaying its accepted events in sequence; it does not need a case snapshot or a second history write.
 
@@ -62,4 +62,4 @@ The local API generates unique references for newly created samples and supports
 
 ## Machine definitions
 
-`machine_definitions` (`Lm8JZL9uCNqj14vE`) stores `machine` (String), `version` (Number), `definition` (String containing JSON), and `isDefault` (Boolean). Use [machine_definitions.csv](machine_definitions.csv) as a schema header reference. The editor/API catalog requires one default for display. The generic core does not use that flag: a new case selects its machine and version explicitly. Phase 2 will seed fresh customer-refund v1 and Flow4Gold submission v1 definitions. Save validated, immutable versions through the frontend editor/API. See [the catalog contract](../docs/machine-editor.md) for loading and replay behavior.
+`machine_definitions` (`Lm8JZL9uCNqj14vE`) stores `machine` (String), `version` (Number), `definition` (String containing JSON), and `isDefault` (Boolean). Use [machine_definitions.csv](machine_definitions.csv) as a schema header reference. The editor/API catalog requires one default for display. The generic core does not use that flag: a new case selects its machine and version explicitly. The catalog contains fresh customer-refund v1 and Flow4Gold submission v1/v2 definitions; v2 is an explicit starting-transition comparison, not a compatibility version. Save validated, immutable versions through the frontend editor/API. See [the catalog contract](../docs/machine-editor.md) for loading and replay behavior.

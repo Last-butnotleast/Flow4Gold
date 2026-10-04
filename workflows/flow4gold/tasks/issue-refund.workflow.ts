@@ -29,9 +29,8 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 @workflow({
     id: 'QWAFL09ceL8nUa6y',
     name: 'Flow4Gold - Issue Refund (Simulated)',
-    active: true,
+    active: false,
     isArchived: false,
-    projectId: '8d5DQtHZkgLco5Yr',
     settings: { executionOrder: 'v1' },
 })
 export class Flow4goldIssueRefundSimulatedWorkflow {

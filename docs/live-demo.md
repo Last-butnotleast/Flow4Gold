@@ -2,7 +2,7 @@
 
 The demo combines a customer conversation, live process graph, sample payment library and machine editor. Jev performs real bounded diagnosis; Discord-linked forms collect human decisions; refund and verification tasks simulate payments.
 
-**Phase 1 is local only.** Coordinated remote reset/publication and fresh end-to-end checks are a separate phase. Follow [generic runtime status](generic-runtime.md); do not assume the hosted instance already matches the local fresh refund v1 contract.
+**The fresh generic runtime is deployed.** See [generic runtime status](generic-runtime.md) for live checks and scope. Old case history and waiting approval forms were reset; start a new conversation.
 
 ## Start locally
 
@@ -14,7 +14,7 @@ npm run demo
 
 Open `http://localhost:5173/?mode=live`. With Vite already running, start only `npm run demo:api`. Vite proxies `/api` to the bridge at `127.0.0.1:5174`. The ignored `.env` holds `N8N_API_KEY` and `FLOW4GOLD_DEMO_TOKEN`, which matches the gateway's header credential. These remain server-side.
 
-After coordinated rollout, the gateway, core and five task workflows need to be published for real callbacks. The customer gateway accepts only intake, customer replies and inspection. It adds `machine: "customer-refund", machineVersion: 1` to intake internally; browser users cannot inject arbitrary domain events or machine identities.
+The gateway, core and five refund task workflows are published for real callbacks. The customer gateway accepts only intake, customer replies and inspection. It adds `machine: "customer-refund", machineVersion: 1` to intake internally; browser users cannot inject arbitrary domain events or machine identities.
 
 ## Demo workspace
 

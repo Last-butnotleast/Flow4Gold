@@ -2,7 +2,7 @@
 
 Domain state machines running in n8n: the machine owns the process, tasks perform business work, and AI makes bounded decisions. See [the project brief](PROJECT_BRIEF.md).
 
-**Current checkpoint:** the generic runtime redesign is local-only. The existing n8n deployment still uses the pre-reset demo. [Phase plan and deployment boundary](docs/generic-runtime.md). Do not publish individual redesigned workflows against the old catalog/bindings.
+**Current checkpoint:** the generic runtime is deployed with fresh tables. Live checks prove refund and Flow4Gold submission cases, including two submission versions, in one event table. [Phase plan and evidence](docs/generic-runtime.md). Visualizer work continues separately.
 
 ## Runtime
 
@@ -30,7 +30,7 @@ The core has no public webhook; trusted n8n adapters call it. Business validatio
 ## Demo machines
 
 - [Customer refund](machines/customer-refund.v1.json): real Jev diagnosis, Discord approval/review, simulated refund and verification. The local seed starts fresh at v1; historical compatibility versions are removed.
-- [Flow4Gold submission](machines/flow4gold-submission.v1.json): contestant/organizer lifecycle, starting with `SUBMISSION_RECEIVED`. This is the second runtime comparison model. Competition tasks are developed separately; see [their contract](docs/competition-tasks.md).
+- [Flow4Gold submission](machines/flow4gold-submission.v1.json): contestant/organizer lifecycle, starting with `SUBMISSION_RECEIVED`. This is the second runtime comparison model. The [private competition gateway](docs/competition-gateway.md) calls the completed competition adapters and persists their events; email and other effects remain previews. A v2 comparison definition demonstrates a different initial transition.
 
 Other JSON files are graph examples. A valid graph does not supply its business adapters automatically. Once a definition has recorded events, save a new version rather than modify it.
 

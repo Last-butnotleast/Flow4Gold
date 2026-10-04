@@ -1,6 +1,6 @@
 # Simulated refund, end to end
 
-The fresh refund v1 example combines real Jev diagnosis, human decisions through Discord-linked forms, and simulated payment tasks. This phase-1 implementation is local; deployment and fresh live verification follow the coordinated reset described in [generic runtime status](generic-runtime.md).
+The fresh refund v1 example combines real Jev diagnosis, human decisions through Discord-linked forms, and simulated payment tasks. The generic runtime and fresh tables are deployed; current verification is recorded in [generic runtime status](generic-runtime.md).
 
 ```text
 RECEIVED → INVESTIGATING
@@ -26,6 +26,6 @@ All task dispatches and callbacks are asynchronous. The stream is authoritative;
 
 The receipt contains `simulation: true`, `receiptId`, `proposalEventId`, amount, currency and payment reference. Its deterministic ID is `simulated-refund:` plus the refund invocation ID. Verification establishes internal simulated-receipt consistency, not payment-provider confirmation.
 
-After coordinated deployment, start a fresh case through the customer gateway, review its Discord form, and watch the case complete. The gateway supplies `machine: "customer-refund"` and `machineVersion: 1` internally for intake. Existing cases use the identity pinned in their event stream.
+Start a fresh case through the customer gateway, review its Discord form, and watch the case complete. The gateway supplies `machine: "customer-refund"` and `machineVersion: 1` internally for intake. Existing cases use the identity pinned in their event stream.
 
 Independent submissions remain sequential. Append and dispatch are separate operations; automatic crash recovery is outside this PoC. Repeating an accepted event or inspecting a case never retries missing task work.

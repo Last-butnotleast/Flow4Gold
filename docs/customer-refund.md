@@ -1,6 +1,6 @@
 # Customer refund, version 1
 
-[customer-refund.v1.json](../machines/customer-refund.v1.json) is the fresh refund example for the generic runtime. It includes diagnosis, ordinary approval, actionable human review, and simulated refund/verification. This is a local phase-1 reset, not a migration of deployed history; see [generic runtime status](generic-runtime.md).
+[customer-refund.v1.json](../machines/customer-refund.v1.json) is the fresh refund example for the generic runtime. It includes diagnosis, ordinary approval, actionable human review, and simulated refund/verification. The fresh definition is deployed after a coordinated data reset; see [generic runtime status](generic-runtime.md).
 
 ```text
 OPEN --RECEIVED--> INVESTIGATING

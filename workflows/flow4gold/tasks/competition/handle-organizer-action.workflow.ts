@@ -399,7 +399,7 @@ return [{json: {...x, payload, obligations}}];`
   PrepareEvent = {
   "mode": "runOnceForAllItems",
   jsCode: `const x = $input.first().json;
-const event = {eventId: JSON.stringify([x.caseId, x.requestId, x.action]), caseId: x.caseId, machine: x.machine, machineVersion: x.machineVersion, type: x.action, payload: x.payload, correlationId: x.correlationId, causationId: x.requestId};
+const event = {eventId: JSON.stringify([x.caseId, x.requestId, x.action]), caseId: x.caseId, machine: x.machine, machineVersion: x.machineVersion, type: x.action, payload: x.payload, correlationId: x.correlationId};
 return [{json: {...x, event}}];`
 };
 
